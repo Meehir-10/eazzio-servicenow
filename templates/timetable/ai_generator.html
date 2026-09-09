@@ -1,0 +1,196 @@
+{% extends 'base.html' %}
+{% block title %}AI Timetable Generator - CampusSphere AI{% endblock %}
+{% block content %}
+<div class="row g-4 mb-4">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm rounded-4 p-4 text-white" style="background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #1e40af 100%);">
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+                <div>
+                    <span class="badge bg-warning text-dark px-3 py-1 mb-2 fw-bold">
+                        <i class="fa-solid fa-wand-magic-sparkles me-1"></i> Constraint Optimization Engine
+                    </span>
+                    <h3 class="fw-bold mb-1">AI Smart Timetable Generator</h3>
+                    <p class="mb-0 text-light text-opacity-75">
+                        Automatically synthesize conflict-free class schedules, allocate computer labs, balance instructor workloads, and push live.
+                    </p>
+                </div>
+                <a href="{% url 'view_timetable' %}" class="btn btn-outline-light rounded-pill">
+                    <i class="fa-solid fa-arrow-left me-1"></i> View Live Timetable
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Generator Controls Form -->
+    <div class="col-lg-5">
+        <div class="card border-0 shadow-sm rounded-4">
+            <div class="card-header bg-white border-bottom py-3">
+                <h5 class="fw-bold mb-0 text-dark">
+                    <i class="fa-solid fa-sliders text-primary me-2"></i> Generator Parameters
+                </h5>
+            </div>
+            <div class="card-body p-4">
+                <form method="post" action="{% url 'ai_timetable' %}">
+                    {% csrf_token %}
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small text-primary">
+                            <i class="fa-solid fa-comment-dots me-1"></i> Natural Language Prompt (Optional)
+                        </label>
+                        {{ form.prompt }}
+                        <div class="form-text small">e.g., <em>"Create a 5-day timetable for Semester 4 Section A starting at 9 AM with 6 slots."</em></div>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-6">
+                            <label class="form-label fw-semibold small">Semester</label>
+                            {{ form.semester }}
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-semibold small">Section</label>
+                            {{ form.section }}
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-6">
+                            <label class="form-label fw-semibold small">Start Hour (24h)</label>
+                            {{ form.start_hour }}
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-semibold small">Classes per Day</label>
+                            {{ form.slots_per_day }}
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small d-block">Working Days</label>
+                        <div class="d-flex flex-wrap gap-3">
+                            {% for checkbox in form.working_days %}
+                            <div class="form-check">
+                                {{ checkbox.tag }}
+                                <label class="form-check-label small" for="{{ checkbox.id_for_label }}">{{ checkbox.choice_label }}</label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="mb-4 form-check">
+                        {{ form.include_lunch_break }}
+                        <label class="form-check-label small fw-semibold" for="{{ form.include_lunch_break.id_for_label }}">
+                            Include 45-min Lunch & Refreshment Break
+                        </label>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" name="action" value="preview" class="btn btn-outline-primary flex-grow-1 rounded-pill fw-semibold">
+                            <i class="fa-solid fa-eye me-1"></i> Generate Preview
+                        </button>
+                        <button type="submit" name="action" value="apply" class="btn btn-primary flex-grow-1 rounded-pill fw-semibold shadow-sm" onclick="return confirm('Deploy this timetable to the live college ERP database?');">
+                            <i class="fa-solid fa-check-double me-1"></i> Apply to ERP
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Optimization Results & Preview -->
+    <div class="col-lg-7">
+        {% if result %}
+        <div class="card border-0 shadow-sm rounded-4 mb-4">
+            <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+                <h5 class="fw-bold mb-0 text-dark">
+                    <i class="fa-solid fa-gauge-simple-high text-success me-2"></i> Optimization Report
+                </h5>
+                <span class="badge {% if result.conflicts_count == 0 %}bg-success{% else %}bg-warning text-dark{% endif %} px-3 py-2 rounded-pill">
+                    {% if result.conflicts_count == 0 %}100% Conflict-Free{% else %}{{ result.conflicts_count }} Conflicts Detected{% endif %}
+                </span>
+            </div>
+            <div class="card-body p-4">
+                <!-- Metrics Bar -->
+                <div class="row g-3 text-center mb-4">
+                    <div class="col-4">
+                        <div class="p-3 bg-light rounded-3">
+                            <div class="text-muted small fw-semibold">Optimization Score</div>
+                            <h3 class="fw-bold text-success mb-0">{{ result.optimization_score }}%</h3>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="p-3 bg-light rounded-3">
+                            <div class="text-muted small fw-semibold">Total Classes</div>
+                            <h3 class="fw-bold text-primary mb-0">{{ result.total_classes }}</h3>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="p-3 bg-light rounded-3">
+                            <div class="text-muted small fw-semibold">Conflicts</div>
+                            <h3 class="fw-bold {% if result.conflicts_count == 0 %}text-success{% else %}text-danger{% endif %} mb-0">
+                                {{ result.conflicts_count }}
+                            </h3>
+                        </div>
+                    </div>
+                </div>
+
+                {% if result.conflicts %}
+                <div class="alert alert-danger py-2 px-3 mb-3 small">
+                    <ul class="mb-0 ps-3">
+                        {% for c in result.conflicts %}
+                        <li>{{ c }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+
+                <!-- Generated Schedule Table -->
+                <div class="table-responsive" style="max-height: 480px; overflow-y: auto;">
+                    <table class="table table-sm table-hover align-middle mb-0">
+                        <thead class="table-light sticky-top">
+                            <tr>
+                                <th>Day</th>
+                                <th>Time</th>
+                                <th>Subject</th>
+                                <th>Faculty</th>
+                                <th>Room / Lab</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in result.items %}
+                            <tr>
+                                <td class="fw-bold text-secondary">{{ item.day }}</td>
+                                <td class="small">{{ item.start_time_str }} - {{ item.end_time_str }}</td>
+                                <td>
+                                    <div class="fw-bold small">{{ item.subject.name }}</div>
+                                    <small class="text-muted">{{ item.subject.code }}</small>
+                                </td>
+                                <td class="small">{{ item.faculty.get_full_name|default:item.faculty.username }}</td>
+                                <td>
+                                    <span class="badge {% if 'Lab' in item.room.room_type %}bg-info text-dark{% else %}bg-secondary{% endif %}">
+                                        {{ item.room.room_number }}
+                                    </span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="card border-0 shadow-sm rounded-4 h-100 d-flex align-items-center justify-content-center p-5 text-center bg-white">
+            <div class="p-4" style="max-width: 420px;">
+                <div class="stat-icon bg-primary bg-opacity-10 text-primary mx-auto mb-3" style="width: 64px; height: 64px; font-size: 1.8rem;">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i>
+                </div>
+                <h5 class="fw-bold text-dark mb-2">Ready to Synthesize Schedule</h5>
+                <p class="text-muted small mb-0">
+                    Adjust the parameters on the left or type a prompt. The AI will compute conflict-free instructor allocations and room assignments instantly.
+                </p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

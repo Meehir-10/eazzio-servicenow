@@ -1,0 +1,153 @@
+{% extends 'base.html' %}
+{% block title %}Timetable - CampusSphere AI{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+    <div>
+        <h3 class="fw-bold text-dark mb-1">Academic Timetable</h3>
+        <p class="text-muted small mb-0">View scheduled lectures, practical labs, and real-time class modifications</p>
+    </div>
+
+    <div class="d-flex align-items-center gap-2">
+        {% if can_edit %}
+        <a href="{% url 'ai_timetable' %}" class="btn btn-warning text-dark fw-semibold rounded-pill shadow-sm">
+            <i class="fa-solid fa-wand-magic-sparkles me-1"></i> AI Generator
+        </a>
+        <a href="{% url 'change_schedule' %}" class="btn btn-outline-primary rounded-pill">
+            <i class="fa-solid fa-arrows-rotate me-1"></i> Reschedule
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Filter Bar -->
+<div class="card border-0 shadow-sm rounded-4 mb-4">
+    <div class="card-body p-3">
+        <form method="get" class="row g-2 align-items-center">
+            <div class="col-auto">
+                <label class="small text-muted fw-semibold me-2">Semester:</label>
+            </div>
+            <div class="col-auto">
+                <select name="semester" class="form-select form-select-sm" onchange="this.form.submit()">
+                    {% for sem in "12345678"|make_list %}
+                    <option value="{{ sem }}" {% if selected_semester|stringformat:"s" == sem %}selected{% endif %}>Semester {{ sem }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="col-auto ms-md-3">
+                <label class="small text-muted fw-semibold me-2">Section:</label>
+            </div>
+            <div class="col-auto">
+                <select name="section" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="A" {% if selected_section == 'A' %}selected{% endif %}>Section A</option>
+                    <option value="B" {% if selected_section == 'B' %}selected{% endif %}>Section B</option>
+                    <option value="C" {% if selected_section == 'C' %}selected{% endif %}>Section C</option>
+                </select>
+            </div>
+
+            <div class="col-auto ms-auto d-flex gap-1">
+                <a href="?semester={{ selected_semester }}&section={{ selected_section }}&view=grid" class="btn btn-sm {% if view_type == 'grid' %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+                    <i class="fa-solid fa-table-cells"></i> Grid
+                </a>
+                <a href="?semester={{ selected_semester }}&section={{ selected_section }}&view=list" class="btn btn-sm {% if view_type == 'list' %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+                    <i class="fa-solid fa-list"></i> List
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% if recent_changes %}
+<div class="alert alert-warning border-0 shadow-sm rounded-4 mb-4 py-2 px-3 d-flex align-items-center justify-content-between">
+    <div>
+        <i class="fa-solid fa-triangle-exclamation text-warning me-2"></i>
+        <strong>Active Schedule Changes:</strong> There are {{ recent_changes|length }} temporary class modifications active for this batch.
+    </div>
+</div>
+{% endif %}
+
+<!-- Grid View -->
+{% if view_type == 'grid' %}
+<div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-4">
+    <div class="table-responsive">
+        <table class="table table-bordered timetable-table text-center align-middle mb-0">
+            <thead>
+                <tr>
+                    <th style="width: 140px;" class="bg-dark text-white">Day</th>
+                    <th class="bg-light">Scheduled Classes</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for day, day_schedules in timetable_grid.items %}
+                <tr>
+                    <td class="fw-bold bg-light text-secondary">{{ day }}</td>
+                    <td class="text-start p-2">
+                        {% if day_schedules %}
+                            <div class="d-flex flex-wrap gap-2">
+                                {% for s in day_schedules %}
+                                <div class="schedule-slot flex-grow-1 {% if 'Lab' in s.room.room_type %}slot-lab{% endif %}" style="min-width: 220px; max-width: 320px;">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <span class="badge bg-white text-dark border small">{{ s.start_time|time:"g:i A" }} - {{ s.end_time|time:"g:i A" }}</span>
+                                        <span class="badge {% if 'Lab' in s.room.room_type %}bg-danger bg-opacity-75{% else %}bg-primary{% endif %} text-white">{{ s.room.room_number }}</span>
+                                    </div>
+                                    <div class="fw-bold text-dark text-truncate">{{ s.subject.name }}</div>
+                                    <div class="text-muted small d-flex justify-content-between mt-1">
+                                        <span><i class="fa-solid fa-chalkboard-user me-1"></i> {{ s.faculty.get_full_name|default:s.faculty.username }}</span>
+                                        <span>{{ s.subject.code }}</span>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <span class="text-muted small ps-2">No lectures scheduled</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% else %}
+<!-- List View -->
+<div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-4">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Day</th>
+                    <th>Time</th>
+                    <th>Subject</th>
+                    <th>Faculty</th>
+                    <th>Room</th>
+                    <th>Category</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in schedules %}
+                <tr>
+                    <td class="fw-bold text-secondary">{{ s.day }}</td>
+                    <td>{{ s.start_time|time:"g:i A" }} - {{ s.end_time|time:"g:i A" }}</td>
+                    <td>
+                        <div class="fw-bold">{{ s.subject.name }}</div>
+                        <small class="text-muted">{{ s.subject.code }}</small>
+                    </td>
+                    <td>{{ s.faculty.get_full_name|default:s.faculty.username }}</td>
+                    <td><span class="badge bg-light text-dark border">{{ s.room.room_number }}</span></td>
+                    <td>
+                        <span class="badge {% if 'Lab' in s.room.room_type %}bg-info text-dark{% else %}bg-secondary{% endif %}">
+                            {{ s.room.room_type }}
+                        </span>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="text-center py-4 text-muted">No schedule records found for Semester {{ selected_semester }} Section {{ selected_section }}.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

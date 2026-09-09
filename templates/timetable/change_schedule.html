@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+{% block title %}Reschedule Class - CampusSphere AI{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-7">
+        <div class="card border-0 shadow-sm rounded-4">
+            <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+                <h5 class="fw-bold mb-0 text-dark">
+                    <i class="fa-solid fa-arrows-rotate text-warning me-2"></i> Class Modification / Substitution
+                </h5>
+                <a href="{% url 'view_timetable' %}" class="btn btn-sm btn-outline-secondary rounded-pill">Cancel</a>
+            </div>
+            <div class="card-body p-4">
+                <p class="text-muted small mb-4">
+                    Modify a specific scheduled slot for a designated date. When saved, all enrolled students and faculty will automatically receive real-time notification alerts.
+                </p>
+
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Select Scheduled Class</label>
+                        {{ form.schedule }}
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Date of Modification</label>
+                        {{ form.date }}
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Substitute Faculty (Optional)</label>
+                            {{ form.new_faculty }}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Relocate Room (Optional)</label>
+                            {{ form.new_room }}
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Reason for Modification / Cancellation</label>
+                        {{ form.reason }}
+                    </div>
+
+                    <div class="mb-4 form-check">
+                        {{ form.is_cancelled }}
+                        <label class="form-check-label text-danger fw-semibold small" for="{{ form.is_cancelled.id_for_label }}">
+                            Mark this lecture as completely CANCELLED for the selected date
+                        </label>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100 py-2 rounded-pill fw-semibold shadow-sm">
+                        <i class="fa-solid fa-paper-plane me-2"></i> Save Changes & Notify Students
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

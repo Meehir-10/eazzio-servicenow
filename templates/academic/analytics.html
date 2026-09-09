@@ -1,0 +1,112 @@
+{% extends 'base.html' %}
+{% block title %}Academic Analytics - CampusSphere AI{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+    <div>
+        <h3 class="fw-bold text-dark mb-1">Institutional Academic Analytics</h3>
+        <p class="text-muted small mb-0">Operational workload metrics, room utilization, and student compliance overview</p>
+    </div>
+</div>
+
+<!-- Key Performance Indicators -->
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="stat-card">
+            <span class="text-muted small fw-semibold">Weekly Lecture Slots</span>
+            <h3 class="fw-bold text-primary mb-0 mt-1">{{ total_classes }}</h3>
+            <small class="text-muted">Total active periods across departments</small>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="stat-card">
+            <span class="text-muted small fw-semibold">Enrolled Scholars</span>
+            <h3 class="fw-bold text-success mb-0 mt-1">{{ total_students }}</h3>
+            <small class="text-muted">Active undergraduate students</small>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="stat-card">
+            <span class="text-muted small fw-semibold">Institute Attendance Average</span>
+            <h3 class="fw-bold text-indigo mb-0 mt-1" style="color: #4338ca;">{{ overall_attendance }}%</h3>
+            <small class="text-muted">Attendance health benchmark</small>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Subject Workload Table -->
+    <div class="col-lg-6">
+        <div class="card border-0 shadow-sm rounded-4 h-100">
+            <div class="card-header bg-white border-bottom py-3">
+                <h5 class="fw-bold mb-0 text-dark">
+                    <i class="fa-solid fa-book text-primary me-2"></i> Curriculum Lecture Workload
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Subject</th>
+                                <th>Semester</th>
+                                <th class="text-end">Weekly Classes</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for subj in subject_workload %}
+                            <tr>
+                                <td>
+                                    <div class="fw-bold text-dark">{{ subj.name }}</div>
+                                    <small class="text-muted">{{ subj.code }} • {{ subj.credits }} Credits</small>
+                                </td>
+                                <td>Sem {{ subj.semester }}</td>
+                                <td class="text-end fw-bold text-primary">{{ subj.classes_count }} hrs/wk</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Room & Venue Utilization -->
+    <div class="col-lg-6">
+        <div class="card border-0 shadow-sm rounded-4 h-100">
+            <div class="card-header bg-white border-bottom py-3">
+                <h5 class="fw-bold mb-0 text-dark">
+                    <i class="fa-solid fa-building-columns text-success me-2"></i> Venue Utilization Rate
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Room Number</th>
+                                <th>Venue Type</th>
+                                <th>Capacity</th>
+                                <th class="text-end">Weekly Slots</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for rm in room_utilization %}
+                            <tr>
+                                <td class="fw-bold text-dark">{{ rm.room_number }}</td>
+                                <td>
+                                    <span class="badge {% if 'Lab' in rm.room_type %}bg-info text-dark{% else %}bg-secondary{% endif %}">
+                                        {{ rm.room_type }}
+                                    </span>
+                                </td>
+                                <td>{{ rm.capacity }} Seats</td>
+                                <td class="text-end fw-bold text-success">{{ rm.classes_count }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

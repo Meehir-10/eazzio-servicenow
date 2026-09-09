@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% block title %}Attendance Hub - CampusSphere AI{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+    <div>
+        <h3 class="fw-bold text-dark mb-1">Faculty Attendance Hub</h3>
+        <p class="text-muted small mb-0">Select any scheduled lecture to record or update student attendance</p>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+    <div class="card-header bg-white border-bottom py-3">
+        <h5 class="fw-bold mb-0 text-dark">
+            <i class="fa-solid fa-clipboard-user text-primary me-2"></i> Active Lecture Slots
+        </h5>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Day</th>
+                    <th>Time</th>
+                    <th>Subject</th>
+                    <th>Semester & Section</th>
+                    <th>Assigned Room</th>
+                    <th class="text-end">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in schedules %}
+                <tr>
+                    <td class="fw-bold text-secondary">{{ s.day }}</td>
+                    <td>{{ s.start_time|time:"g:i A" }} - {{ s.end_time|time:"g:i A" }}</td>
+                    <td>
+                        <div class="fw-bold text-dark">{{ s.subject.name }}</div>
+                        <small class="text-muted">{{ s.subject.code }}</small>
+                    </td>
+                    <td>Sem {{ s.semester }} - Sec {{ s.section }}</td>
+                    <td><span class="badge bg-light text-dark border">{{ s.room.room_number }}</span></td>
+                    <td class="text-end">
+                        <a href="{% url 'mark_attendance' s.id %}" class="btn btn-sm btn-primary rounded-pill px-3">
+                            <i class="fa-solid fa-pencil me-1"></i> Mark Attendance
+                        </a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="text-center py-4 text-muted">No active schedules available for attendance.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

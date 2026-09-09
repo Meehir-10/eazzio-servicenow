@@ -1,0 +1,98 @@
+{% extends 'base.html' %}
+{% load erp_extras %}
+{% block title %}Record Attendance - CampusSphere AI{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+    <div>
+        <h3 class="fw-bold text-dark mb-1">Record Class Attendance</h3>
+        <p class="text-muted small mb-0">
+            Subject: <strong>{{ schedule.subject.name }}</strong> (Sem {{ schedule.semester }} - Sec {{ schedule.section }}) • Room {{ schedule.room.room_number }}
+        </p>
+    </div>
+    <a href="{% url 'attendance_list' %}" class="btn btn-outline-secondary rounded-pill">
+        <i class="fa-solid fa-arrow-left me-1"></i> Back to Hub
+    </a>
+</div>
+
+<div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+    <form method="post">
+        {% csrf_token %}
+        <div class="card-header bg-white border-bottom py-3 d-flex flex-wrap justify-content-between align-items-center gap-3">
+            <div class="d-flex align-items-center gap-2">
+                <label class="fw-semibold small text-secondary">Attendance Date:</label>
+                <input type="date" name="date" class="form-control form-control-sm" value="{{ target_date }}" required>
+            </div>
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-sm btn-outline-success rounded-pill" onclick="markAll('Present')">
+                    <i class="fa-solid fa-check-double me-1"></i> Mark All Present
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-danger rounded-pill" onclick="markAll('Absent')">
+                    Mark All Absent
+                </button>
+            </div>
+        </div>
+
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 120px;">Roll / ID</th>
+                            <th>Student Name</th>
+                            <th style="width: 280px;">Status</th>
+                            <th>Remarks (Optional)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for st in students %}
+                        <tr>
+                            <td class="fw-bold text-secondary">{{ st.id_number|default:"N/A" }}</td>
+                            <td>
+                                <div class="fw-semibold text-dark">{{ st.user.get_full_name|default:st.user.username }}</div>
+                                <small class="text-muted">{{ st.user.email }}</small>
+                            </td>
+                            <td>
+                                <div class="btn-group" role="group">
+                                    <input type="radio" class="btn-check status-radio" name="status_{{ st.user.id }}" id="pres_{{ st.user.id }}" value="Present" 
+                                        {% if existing_records|dict_get:st.user.id == 'Present' or not existing_records|dict_get:st.user.id %}checked{% endif %}>
+                                    <label class="btn btn-outline-success btn-sm" for="pres_{{ st.user.id }}">Present</label>
+
+                                    <input type="radio" class="btn-check status-radio" name="status_{{ st.user.id }}" id="late_{{ st.user.id }}" value="Late"
+                                        {% if existing_records|dict_get:st.user.id == 'Late' %}checked{% endif %}>
+                                    <label class="btn btn-outline-warning btn-sm text-dark" for="late_{{ st.user.id }}">Late</label>
+
+                                    <input type="radio" class="btn-check status-radio" name="status_{{ st.user.id }}" id="abs_{{ st.user.id }}" value="Absent"
+                                        {% if existing_records|dict_get:st.user.id == 'Absent' %}checked{% endif %}>
+                                    <label class="btn btn-outline-danger btn-sm" for="abs_{{ st.user.id }}">Absent</label>
+                                </div>
+                            </td>
+                            <td>
+                                <input type="text" name="remarks_{{ st.user.id }}" class="form-control form-control-sm" placeholder="Optional notes...">
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" class="text-center py-4 text-muted">
+                                No registered students found in Semester {{ schedule.semester }} Section {{ schedule.section }}.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card-footer bg-white py-3 border-top d-flex justify-content-end">
+            <button type="submit" class="btn btn-primary px-4 py-2 rounded-pill fw-semibold shadow-sm">
+                <i class="fa-solid fa-save me-2"></i> Save Attendance Records
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+    function markAll(status) {
+        document.querySelectorAll(`.status-radio[value="${status}"]`).forEach(el => el.checked = true);
+    }
+</script>
+{% endblock %}

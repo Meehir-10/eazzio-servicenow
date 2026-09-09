@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+{% block title %}AI Academic Assistant - CampusSphere AI{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm rounded-4 mb-4">
+            <div class="card-header bg-white border-bottom py-3 d-flex align-items-center gap-2">
+                <div class="stat-icon bg-warning bg-opacity-10 text-warning" style="width: 40px; height: 40px; font-size: 1.2rem;">
+                    <i class="fa-solid fa-robot"></i>
+                </div>
+                <div>
+                    <h5 class="fw-bold mb-0 text-dark">CampusSphere AI Academic Assistant</h5>
+                    <small class="text-muted">Instant context-aware inquiries for schedules, attendance, deadlines, and policies</small>
+                </div>
+            </div>
+
+            <div class="card-body p-4">
+                <!-- Suggested Questions Chips -->
+                <div class="mb-4">
+                    <span class="small fw-semibold text-secondary d-block mb-2">Suggested Quick Inquiries:</span>
+                    <div class="d-flex flex-wrap gap-2">
+                        <a href="?query=What classes do I have today?" class="btn btn-sm btn-outline-primary rounded-pill">
+                            <i class="fa-regular fa-clock me-1"></i> Today's Schedule
+                        </a>
+                        <a href="?query=What is my attendance rate?" class="btn btn-sm btn-outline-success rounded-pill">
+                            <i class="fa-solid fa-chart-line me-1"></i> Attendance Status
+                        </a>
+                        <a href="?query=When is the next academic holiday?" class="btn btn-sm btn-outline-warning text-dark rounded-pill">
+                            <i class="fa-solid fa-umbrella-beach me-1"></i> Next Holiday
+                        </a>
+                        <a href="?query=What assignments are currently due?" class="btn btn-sm btn-outline-danger rounded-pill">
+                            <i class="fa-solid fa-file-pen me-1"></i> Assignment Deadlines
+                        </a>
+                        <a href="?query=Tell me about smart rooms and AI labs" class="btn btn-sm btn-outline-info text-dark rounded-pill">
+                            <i class="fa-solid fa-door-open me-1"></i> Campus Labs
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Chat Conversation Window -->
+                <div class="p-4 bg-light rounded-4 mb-4" style="min-height: 250px;">
+                    {% if user_query %}
+                    <!-- User Message Bubble -->
+                    <div class="d-flex gap-2 mb-3 justify-content-end">
+                        <div class="chat-bubble-user shadow-sm">
+                            {{ user_query }}
+                        </div>
+                    </div>
+
+                    <!-- AI Response Bubble -->
+                    <div class="d-flex gap-2 align-items-start">
+                        <div class="rounded-circle bg-warning bg-opacity-25 text-warning p-2 d-flex align-items-center justify-content-center" style="width: 38px; height: 38px; flex-shrink: 0;">
+                            <i class="fa-solid fa-robot"></i>
+                        </div>
+                        <div class="chat-bubble-ai shadow-sm flex-grow-1">
+                            <div class="fw-bold text-primary mb-1" style="font-size: 0.85rem;">CampusSphere Assistant</div>
+                            <div class="text-dark" style="white-space: pre-wrap; line-height: 1.6;">{{ ai_response }}</div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-4 text-muted">
+                        <i class="fa-solid fa-sparkles fa-3x text-warning mb-3 opacity-75"></i>
+                        <h6 class="fw-bold text-dark">How can I assist your studies or instruction today?</h6>
+                        <p class="small mb-0">Ask about your lectures, attendance warnings, exam notices, or deadlines.</p>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Inquiry Input Form -->
+                <form method="get" action="{% url 'ai_assistant' %}">
+                    <div class="input-group input-group-lg shadow-sm rounded-pill overflow-hidden border">
+                        <input type="text" name="query" class="form-control border-0 px-4" placeholder="Ask anything about your timetable, classes, attendance..." value="{{ user_query }}" required autofocus>
+                        <button type="submit" class="btn btn-primary px-4 fw-semibold">
+                            <i class="fa-solid fa-paper-plane me-1"></i> Ask
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

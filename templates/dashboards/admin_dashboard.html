@@ -1,0 +1,165 @@
+{% extends 'base.html' %}
+{% block title %}Admin Dashboard - CampusSphere AI{% endblock %}
+{% block content %}
+<div class="row g-4 mb-4">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm rounded-4 p-4 text-white" style="background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);">
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+                <div>
+                    <span class="badge bg-danger mb-2 px-3 py-1">Super Administrator / Dean Portal</span>
+                    <h3 class="fw-bold mb-1">CampusSphere AI Academic Administration</h3>
+                    <p class="mb-0 text-light text-opacity-75">
+                        Central Command: Manage Timetables, Faculty, Infrastructure, and Institution Policies
+                    </p>
+                </div>
+                <div class="d-flex gap-2">
+                    <a href="{% url 'ai_timetable' %}" class="btn btn-warning text-dark fw-bold rounded-pill px-4 shadow">
+                        <i class="fa-solid fa-wand-magic-sparkles me-2"></i> Launch AI Timetable Generator
+                    </a>
+                    <a href="/admin/" target="_blank" class="btn btn-outline-light rounded-pill">
+                        <i class="fa-solid fa-gear me-1"></i> Django Admin
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Admin KPI Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3">
+        <div class="stat-card d-flex align-items-center justify-content-between">
+            <div>
+                <span class="text-muted small fw-semibold">Total Students</span>
+                <h3 class="fw-bold mb-0 text-primary">{{ metrics.total_students }}</h3>
+                <small class="text-muted">Enrolled Scholars</small>
+            </div>
+            <div class="stat-icon bg-primary bg-opacity-10 text-primary">
+                <i class="fa-solid fa-user-graduate"></i>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-6 col-lg-3">
+        <div class="stat-card d-flex align-items-center justify-content-between">
+            <div>
+                <span class="text-muted small fw-semibold">Faculty Staff</span>
+                <h3 class="fw-bold mb-0 text-indigo" style="color: #4338ca;">{{ metrics.total_teachers }}</h3>
+                <small class="text-muted">Professors & Instructors</small>
+            </div>
+            <div class="stat-icon bg-secondary bg-opacity-10 text-indigo">
+                <i class="fa-solid fa-chalkboard-user"></i>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-6 col-lg-3">
+        <div class="stat-card d-flex align-items-center justify-content-between">
+            <div>
+                <span class="text-muted small fw-semibold">Classrooms & Labs</span>
+                <h3 class="fw-bold mb-0 text-success">{{ metrics.total_rooms }}</h3>
+                <small class="text-muted">Managed venues</small>
+            </div>
+            <div class="stat-icon bg-success bg-opacity-10 text-success">
+                <i class="fa-solid fa-door-open"></i>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-6 col-lg-3">
+        <div class="stat-card d-flex align-items-center justify-content-between">
+            <div>
+                <span class="text-muted small fw-semibold">Active Schedules</span>
+                <h3 class="fw-bold mb-0 text-danger">{{ metrics.total_schedules }}</h3>
+                <small class="text-muted">Weekly timetable slots</small>
+            </div>
+            <div class="stat-icon bg-danger bg-opacity-10 text-danger">
+                <i class="fa-solid fa-calendar-days"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Schedule Change Audits -->
+    <div class="col-lg-7">
+        <div class="card border-0 shadow-sm rounded-4 h-100">
+            <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+                <h5 class="fw-bold mb-0 text-dark">
+                    <i class="fa-solid fa-history text-secondary me-2"></i> Recent Schedule Modifications
+                </h5>
+                <a href="{% url 'change_schedule' %}" class="btn btn-sm btn-outline-primary rounded-pill">+ Add Change</a>
+            </div>
+            <div class="card-body p-3">
+                {% if recent_changes %}
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Subject / Slot</th>
+                                    <th>Action / Substitution</th>
+                                    <th>Changed By</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for ch in recent_changes %}
+                                <tr>
+                                    <td class="fw-semibold text-secondary">{{ ch.date|date:"M d, Y" }}</td>
+                                    <td>
+                                        <div class="fw-bold">{{ ch.schedule.subject.name }}</div>
+                                        <small class="text-muted">{{ ch.schedule.day }} {{ ch.schedule.start_time|time:"g:i A" }}</small>
+                                    </td>
+                                    <td>
+                                        {% if ch.is_cancelled %}
+                                            <span class="badge bg-danger">Cancelled</span>
+                                        {% else %}
+                                            <span class="badge bg-warning text-dark">Modified</span>
+                                            {% if ch.new_faculty %}<small class="d-block text-muted">Sub: {{ ch.new_faculty.username }}</small>{% endif %}
+                                            {% if ch.new_room %}<small class="d-block text-muted">Room: {{ ch.new_room.room_number }}</small>{% endif %}
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ ch.created_by.get_full_name|default:ch.created_by.username }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="text-muted text-center py-4 mb-0">No recent schedule changes recorded.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Navigation & Pending Approvals -->
+    <div class="col-lg-5">
+        <div class="card border-0 shadow-sm rounded-4 mb-4">
+            <div class="card-header bg-white border-bottom py-3">
+                <h6 class="fw-bold mb-0 text-dark">
+                    <i class="fa-solid fa-bolt text-warning me-2"></i> Administrative Shortlinks
+                </h6>
+            </div>
+            <div class="card-body p-3">
+                <div class="d-grid gap-2">
+                    <a href="{% url 'ai_timetable' %}" class="btn btn-outline-primary text-start">
+                        <i class="fa-solid fa-wand-magic-sparkles me-2"></i> Run AI Timetable Generator
+                    </a>
+                    <a href="{% url 'notice_create' %}" class="btn btn-outline-secondary text-start">
+                        <i class="fa-solid fa-bullhorn me-2"></i> Broadcast Official College Notice
+                    </a>
+                    <a href="{% url 'holiday_list' %}" class="btn btn-outline-secondary text-start">
+                        <i class="fa-solid fa-umbrella-beach me-2"></i> Manage Academic Holidays
+                    </a>
+                    <a href="{% url 'analytics' %}" class="btn btn-outline-secondary text-start">
+                        <i class="fa-solid fa-chart-pie me-2"></i> View ERP Analytics & Workload
+                    </a>
+                    <a href="{% url 'room_list' %}" class="btn btn-outline-secondary text-start">
+                        <i class="fa-solid fa-door-open me-2"></i> Classrooms & Labs Inventory
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

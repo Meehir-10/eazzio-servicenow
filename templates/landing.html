@@ -1,0 +1,164 @@
+{% extends 'base.html' %}
+{% block public_content %}
+<div class="min-vh-100 d-flex flex-column bg-light">
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark py-3 px-4 shadow-sm" style="background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%) !important;">
+        <div class="container-fluid">
+            <a class="navbar-brand fw-bold d-flex align-items-center gap-2" href="/">
+                <i class="fa-solid fa-graduation-cap text-primary fa-lg"></i>
+                <span style="letter-spacing: 0.5px;">CampusSphere <span class="badge bg-primary">AI</span></span>
+            </a>
+            <div class="d-flex gap-2">
+                <a href="{% url 'login' %}" class="btn btn-outline-light px-4 rounded-pill">Login</a>
+                <a href="{% url 'register' %}" class="btn btn-primary px-4 rounded-pill shadow-sm">Register</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="py-5 text-white position-relative" style="background: linear-gradient(135deg, #1e3a8a 0%, #312e81 100%);">
+        <div class="container py-4">
+            <div class="row align-items-center g-5">
+                <div class="col-lg-7">
+                    <span class="badge bg-info bg-opacity-25 text-info border border-info border-opacity-50 px-3 py-2 rounded-pill mb-3">
+                        <i class="fa-solid fa-microchip me-1"></i> Next-Gen Academic ERP System
+                    </span>
+                    <h1 class="display-4 fw-bold lh-sm mb-3">
+                        AI-Powered College Academic Management & Smart Timetable
+                    </h1>
+                    <p class="lead text-light text-opacity-75 mb-4">
+                        CampusSphere AI orchestrates automated collision-free scheduling, role-based dashboards, attendance analytics, assignments, notifications, and an integrated academic AI assistant.
+                    </p>
+                    <div class="d-flex flex-wrap gap-3">
+                        <a href="{% url 'login' %}" class="btn btn-light btn-lg px-4 text-primary fw-bold rounded-pill shadow">
+                            <i class="fa-solid fa-arrow-right-to-bracket me-2"></i> Access ERP Portal
+                        </a>
+                        <a href="{% url 'register' %}" class="btn btn-outline-light btn-lg px-4 rounded-pill">
+                            <i class="fa-solid fa-user-plus me-2"></i> Create Account
+                        </a>
+                    </div>
+                </div>
+
+                <div class="col-lg-5">
+                    <!-- Quick Demo Credentials Box -->
+                    <div class="card shadow-lg border-0 rounded-4 p-4 text-dark bg-white">
+                        <div class="d-flex align-items-center justify-content-between mb-3">
+                            <h5 class="fw-bold mb-0 text-primary">
+                                <i class="fa-solid fa-key text-warning me-2"></i> Quick Demo Access
+                            </h5>
+                            <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25">Ready to Test</span>
+                        </div>
+                        <p class="text-muted small mb-3">Click any role to easily sign in and explore the full suite of features:</p>
+
+                        <div class="list-group list-group-flush mb-3">
+                            <div class="list-group-item px-0 py-2 d-flex justify-content-between align-items-center">
+                                <div>
+                                    <div class="fw-bold text-dark"><i class="fa-solid fa-user-graduate text-primary me-2"></i> Student Account</div>
+                                    <small class="text-muted"><code>rohit_kumar</code> / <code>student123</code></small>
+                                </div>
+                                <a href="{% url 'login' %}?u=rohit_kumar&p=student123" class="btn btn-sm btn-outline-primary rounded-pill">Login</a>
+                            </div>
+                            <div class="list-group-item px-0 py-2 d-flex justify-content-between align-items-center">
+                                <div>
+                                    <div class="fw-bold text-dark"><i class="fa-solid fa-chalkboard-user text-warning me-2"></i> Faculty Account</div>
+                                    <small class="text-muted"><code>prof_sharma</code> / <code>teacher123</code></small>
+                                </div>
+                                <a href="{% url 'login' %}?u=prof_sharma&p=teacher123" class="btn btn-sm btn-outline-warning text-dark rounded-pill">Login</a>
+                            </div>
+                            <div class="list-group-item px-0 py-2 d-flex justify-content-between align-items-center">
+                                <div>
+                                    <div class="fw-bold text-dark"><i class="fa-solid fa-shield-halved text-danger me-2"></i> Admin Account</div>
+                                    <small class="text-muted"><code>admin</code> / <code>admin123</code></small>
+                                </div>
+                                <a href="{% url 'login' %}?u=admin&p=admin123" class="btn btn-sm btn-outline-danger rounded-pill">Login</a>
+                            </div>
+                        </div>
+
+                        <div class="alert alert-info py-2 px-3 mb-0 small rounded-3">
+                            <i class="fa-solid fa-circle-check me-1"></i> Pre-seeded with subjects, timetable, labs, and attendance data!
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Key Metrics Ribbon -->
+    <section class="py-4 bg-white border-bottom">
+        <div class="container">
+            <div class="row text-center g-3">
+                <div class="col-6 col-md-3">
+                    <h3 class="fw-bold text-primary mb-1">{{ stats.students_count }}</h3>
+                    <p class="text-muted small mb-0">Enrolled Students</p>
+                </div>
+                <div class="col-6 col-md-3">
+                    <h3 class="fw-bold text-indigo mb-1" style="color: #4338ca;">{{ stats.teachers_count }}</h3>
+                    <p class="text-muted small mb-0">Faculty Members</p>
+                </div>
+                <div class="col-6 col-md-3">
+                    <h3 class="fw-bold text-success mb-1">{{ stats.subjects_count }}</h3>
+                    <p class="text-muted small mb-0">Curriculum Subjects</p>
+                </div>
+                <div class="col-6 col-md-3">
+                    <h3 class="fw-bold text-dark mb-1">{{ stats.rooms_count }}</h3>
+                    <p class="text-muted small mb-0">Smart Classrooms & Labs</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Overview -->
+    <section class="py-5 flex-grow-1">
+        <div class="container">
+            <div class="text-center mb-5">
+                <h6 class="text-primary fw-bold text-uppercase" style="letter-spacing: 1px;">Core Modules</h6>
+                <h2 class="fw-bold">Engineered for Academic Excellence</h2>
+            </div>
+
+            <div class="row g-4">
+                <div class="col-md-4">
+                    <div class="card h-100 p-4 border-0 shadow-sm rounded-4">
+                        <div class="stat-icon bg-primary bg-opacity-10 text-primary mb-3">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i>
+                        </div>
+                        <h5 class="fw-bold">AI Timetable Engine</h5>
+                        <p class="text-muted small">
+                            Automatically balances faculty workloads, allocates computer/practical labs, eliminates room and time clashes, and yields optimization metrics.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="col-md-4">
+                    <div class="card h-100 p-4 border-0 shadow-sm rounded-4">
+                        <div class="stat-icon bg-success bg-opacity-10 text-success mb-3">
+                            <i class="fa-solid fa-bell"></i>
+                        </div>
+                        <h5 class="fw-bold">Live Schedule Notifications</h5>
+                        <p class="text-muted small">
+                            Whenever a lecture is rescheduled, cancelled, or substituted, instant push notifications are delivered straight to students and professors.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="col-md-4">
+                    <div class="card h-100 p-4 border-0 shadow-sm rounded-4">
+                        <div class="stat-icon bg-warning bg-opacity-10 text-warning mb-3">
+                            <i class="fa-solid fa-robot"></i>
+                        </div>
+                        <h5 class="fw-bold">CampusSphere AI Assistant</h5>
+                        <p class="text-muted small">
+                            Students and faculty can query real-time schedules, upcoming holidays, attendance percentages, and pending deadlines in plain natural language.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer class="py-4 bg-dark text-white text-center small">
+        <div class="container">
+            CampusSphere AI • Academic Management System • B.Tech Capstone Project
+        </div>
+    </footer>
+</div>
+{% endblock %}

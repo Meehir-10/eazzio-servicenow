@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+{% block title %}Notice Board - CampusSphere AI{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+    <div>
+        <h3 class="fw-bold text-dark mb-1">Official Notice Board</h3>
+        <p class="text-muted small mb-0">Announcements, academic circulars, exam dates, and institute notifications</p>
+    </div>
+    {% if user.profile.role != 'student' %}
+    <a href="{% url 'notice_create' %}" class="btn btn-primary rounded-pill px-4 shadow-sm">
+        <i class="fa-solid fa-plus-circle me-1"></i> Post Announcement
+    </a>
+    {% endif %}
+</div>
+
+<div class="row g-4">
+    {% for n in notices %}
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100 border-0 shadow-sm rounded-4 p-4 d-flex flex-column bg-white">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="badge bg-{% if n.priority == 'Urgent' %}danger{% elif n.priority == 'Important' %}warning text-dark{% else %}primary{% endif %} px-3 py-1 rounded-pill">
+                    {{ n.priority }}
+                </span>
+                <small class="text-muted">{{ n.created_at|date:"M d, Y" }}</small>
+            </div>
+            
+            <h5 class="fw-bold text-dark mt-2 mb-2">{{ n.title }}</h5>
+            
+            <p class="text-muted small flex-grow-1" style="white-space: pre-wrap;">{{ n.content }}</p>
+
+            {% if n.attachment %}
+            <div class="mb-3">
+                <a href="{{ n.attachment.url }}" class="btn btn-sm btn-outline-secondary rounded-pill w-100" target="_blank">
+                    <i class="fa-solid fa-paperclip me-1"></i> Download Circular Attachment
+                </a>
+            </div>
+            {% endif %}
+
+            <div class="pt-3 border-top d-flex justify-content-between align-items-center small text-muted">
+                <span>Target: <strong>{{ n.get_target_role_display }}</strong></span>
+                <span>By: <strong>{{ n.posted_by.get_full_name|default:n.posted_by.username }}</strong></span>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="col-12 text-center py-5 text-muted">
+        <i class="fa-solid fa-bullhorn fa-3x mb-3 text-secondary opacity-50"></i>
+        <p class="mb-0">No announcements currently active on the board.</p>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
