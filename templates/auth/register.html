@@ -1,11 +1,13 @@
 {% extends 'base.html' %}
+{% load static %}
+{% block title %}Register - SMART CLASS AI{% endblock %}
 {% block public_content %}
 <div class="min-vh-100 d-flex align-items-center justify-content-center bg-light py-5">
     <div class="container" style="max-width: 600px;">
         <div class="text-center mb-4">
             <a href="/" class="text-decoration-none">
-                <i class="fa-solid fa-graduation-cap text-primary fa-3x mb-2"></i>
-                <h3 class="fw-bold text-dark">CampusSphere <span class="badge bg-primary">AI</span></h3>
+                <img src="{% static 'images/logo.svg' %}" alt="SMART CLASS AI Logo" width="60" height="60" class="mb-2">
+                <h3 class="fw-bold text-dark">SMART CLASS <span class="badge bg-primary">AI</span></h3>
             </a>
             <p class="text-muted small">Create your student or faculty account</p>
         </div>

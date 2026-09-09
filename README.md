@@ -1,4 +1,4 @@
-# CampusSphere AI 🎓
+# SMART CLASS AI 🎓
 > **AI-Powered College ERP & Academic Management System**  
 > *B.Tech Capstone / Mini-Project Submission*
 
@@ -6,7 +6,7 @@
 
 ## 🌟 Overview
 
-**CampusSphere AI** is a comprehensive, production-ready Academic Enterprise Resource Planning (ERP) platform built with Python and Django. It combines institutional administrative operations with an intelligent **Constraint-Based AI Timetable Generator**, real-time schedule conflict resolution, automated student broadcast notifications, attendance tracking, coursework submissions, and an interactive context-aware **AI Academic Assistant**.
+**SMART CLASS AI** is a comprehensive, production-ready Academic Enterprise Resource Planning (ERP) platform built with Python and Django. It combines institutional administrative operations with an intelligent **Constraint-Based AI Timetable Generator**, real-time schedule conflict resolution, automated student broadcast notifications, attendance tracking, coursework submissions, and an interactive context-aware **AI Academic Assistant**.
 
 ---
 
@@ -39,7 +39,7 @@
 - Students upload submissions (files or report text).
 - Faculty can score submissions and provide constructive grading feedback.
 
-### 6. 💬 CampusSphere AI Assistant
+### 6. 💬 SMART CLASS AI Assistant
 - Live context-aware chatbot answering queries on today's classes, attendance statistics, upcoming holidays, syllabus notices, and venue details.
 
 ---

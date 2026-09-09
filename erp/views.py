@@ -59,7 +59,7 @@ def register_view(request):
 
             Notification.objects.create(
                 recipient=user,
-                title="Welcome to CampusSphere AI!",
+                title="Welcome to SMART CLASS AI!",
                 message=f"Welcome {user.first_name}! Your {role.capitalize()} account is active. Explore your personalized dashboard.",
                 notification_type="General"
             )
@@ -808,11 +808,11 @@ def ai_assistant_view(request):
         elif 'room' in q or 'lab' in q:
             labs = Room.objects.filter(room_type='Lab', is_active=True).count()
             classrooms = Room.objects.filter(room_type='Classroom', is_active=True).count()
-            ai_response = f"CampusSphere has {classrooms} smart classrooms and {labs} high-performance computing/AI labs equipped with projectors and Wi-Fi."
+            ai_response = f"SMART CLASS AI has {classrooms} smart classrooms and {labs} high-performance computing/AI labs equipped with projectors and Wi-Fi."
 
         else:
             ai_response = (
-                f"Hello {request.user.first_name or request.user.username}! I am CampusSphere AI. "
+                f"Hello {request.user.first_name or request.user.username}! I am SMART CLASS AI. "
                 f"I can help you check your timetable, track attendance, alert you about assignment deadlines, "
                 f"verify room availability, or list upcoming holidays. Try asking: 'What classes do I have today?', "
                 f"'What is my attendance?', or 'When is the next holiday?'"

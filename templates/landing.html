@@ -1,12 +1,14 @@
 {% extends 'base.html' %}
+{% load static %}
+{% block title %}SMART CLASS AI - Next-Gen Academic ERP & Smart Timetable{% endblock %}
 {% block public_content %}
 <div class="min-vh-100 d-flex flex-column bg-light">
     <!-- Navbar -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark py-3 px-4 shadow-sm" style="background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%) !important;">
         <div class="container-fluid">
             <a class="navbar-brand fw-bold d-flex align-items-center gap-2" href="/">
-                <i class="fa-solid fa-graduation-cap text-primary fa-lg"></i>
-                <span style="letter-spacing: 0.5px;">CampusSphere <span class="badge bg-primary">AI</span></span>
+                <img src="{% static 'images/logo.svg' %}" alt="Logo" width="36" height="36">
+                <span style="letter-spacing: 0.5px;">SMART CLASS <span class="badge bg-primary">AI</span></span>
             </a>
             <div class="d-flex gap-2">
                 <a href="{% url 'login' %}" class="btn btn-outline-light px-4 rounded-pill">Login</a>
@@ -27,7 +29,7 @@
                         AI-Powered College Academic Management & Smart Timetable
                     </h1>
                     <p class="lead text-light text-opacity-75 mb-4">
-                        CampusSphere AI orchestrates automated collision-free scheduling, role-based dashboards, attendance analytics, assignments, notifications, and an integrated academic AI assistant.
+                        SMART CLASS AI orchestrates automated collision-free scheduling, role-based dashboards, attendance analytics, assignments, notifications, and an integrated academic AI assistant.
                     </p>
                     <div class="d-flex flex-wrap gap-3">
                         <a href="{% url 'login' %}" class="btn btn-light btn-lg px-4 text-primary fw-bold rounded-pill shadow">
@@ -145,7 +147,7 @@
                         <div class="stat-icon bg-warning bg-opacity-10 text-warning mb-3">
                             <i class="fa-solid fa-robot"></i>
                         </div>
-                        <h5 class="fw-bold">CampusSphere AI Assistant</h5>
+                        <h5 class="fw-bold">SMART CLASS AI Assistant</h5>
                         <p class="text-muted small">
                             Students and faculty can query real-time schedules, upcoming holidays, attendance percentages, and pending deadlines in plain natural language.
                         </p>
@@ -157,7 +159,7 @@
 
     <footer class="py-4 bg-dark text-white text-center small">
         <div class="container">
-            CampusSphere AI • Academic Management System • B.Tech Capstone Project
+            SMART CLASS AI • Academic Management System • B.Tech Capstone Project
         </div>
     </footer>
 </div>

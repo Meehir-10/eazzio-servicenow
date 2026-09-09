@@ -10,7 +10,7 @@ from .models import (
 )
 from .ai_timetable import parse_natural_language_prompt, generate_timetable
 
-class CampusSphereTests(TestCase):
+class SmartClassAITests(TestCase):
     def setUp(self):
         self.client = Client()
         
@@ -37,7 +37,7 @@ class CampusSphereTests(TestCase):
     def test_landing_page(self):
         response = self.client.get(reverse('landing'))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "CampusSphere")
+        self.assertContains(response, "SMART CLASS AI")
 
     def test_authentication_and_dashboard_routing(self):
         # Login Student

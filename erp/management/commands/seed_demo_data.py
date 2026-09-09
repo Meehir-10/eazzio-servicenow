@@ -8,10 +8,10 @@ from erp.models import (
 )
 
 class Command(BaseCommand):
-    help = 'Seeds complete college ERP demonstration dataset for CampusSphere AI'
+    help = 'Seeds complete college ERP demonstration dataset for SMART CLASS AI'
 
     def handle(self, *args, **kwargs):
-        self.stdout.write(self.style.WARNING("Starting CampusSphere AI database seeding..."))
+        self.stdout.write(self.style.WARNING("Starting SMART CLASS AI database seeding..."))
 
         # 1. Admin User
         admin_user, _ = User.objects.get_or_create(username='admin', defaults={'email': 'admin@campussphere.edu', 'is_staff': True, 'is_superuser': True, 'first_name': 'Dean', 'last_name': 'Academics'})
@@ -99,7 +99,7 @@ class Command(BaseCommand):
         Notice.objects.get_or_create(
             title="AI Innovation Hackathon Registrations Open",
             defaults={
-                'content': "CampusSphere AI Lab is hosting the Annual 48-hour student hackathon. Cash prizes and internship opportunities for top 3 teams.",
+                'content': "SMART CLASS AI Lab is hosting the Annual 48-hour student hackathon. Cash prizes and internship opportunities for top 3 teams.",
                 'target_role': 'Student',
                 'priority': 'Normal',
                 'posted_by': prof1
