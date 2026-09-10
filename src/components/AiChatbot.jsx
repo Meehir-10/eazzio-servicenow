@@ -1,224 +1,294 @@
-import React, { useState } from 'react';
-import { Bot, Send, Sparkles, User, HelpCircle } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Bot, Send, Sparkles, User, RefreshCw, BookOpen, Clock, MapPin, CheckCircle2 } from 'lucide-react';
 
 export default function AiChatbot({ user }) {
   const [messages, setMessages] = useState([
     {
-      sender: 'ai',
-      text: `Hello ${user?.name || 'Scholar'}! I am your SMART CLASS AI Assistant. How can I assist your lectures, attendance, or schedule today?`
-    }
+      role: 'assistant',
+      content: `Hello **${user?.name || 'there'}**! 🎓\n\nI am **SMARTCLASS AI**, your dedicated academic intelligence engine for Apex International Academy.\n\nI have direct read access to your **live timetable**, **attendance records**, **homework deadlines**, and **campus geofence**. How can I help you today?`,
+    },
   ]);
   const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const messagesEndRef = useRef(null);
 
-  const quickChips = [
-    "What classes do I have today?",
-    "What is my attendance percentage?",
-    "When is the next academic holiday?",
-    "Where is the AI & ML Lab located?",
-    "What assignments are due this week?"
-  ];
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
 
-  const handleSend = (textToSend) => {
-    const query = textToSend || input;
-    if (!query.trim()) return;
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
-    const userMsg = { sender: 'user', text: query };
-    setMessages((prev) => [...prev, userMsg]);
+  const handleSend = async (textToSend) => {
+    const text = textToSend || input.trim();
+    if (!text || isLoading) return;
+
+    const newMessages = [...messages, { role: 'user', content: text }];
+    setMessages(newMessages);
     setInput('');
+    setIsLoading(true);
 
-    // Generate intelligent academic contextual reply
-    setTimeout(() => {
-      let reply = '';
-      const q = query.toLowerCase();
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          messages: newMessages.map((m) => ({ role: m.role, content: m.content })),
+        }),
+      });
 
-      if (q.includes('class') || q.includes('today') || q.includes('schedule') || q.includes('lecture')) {
-        reply = `Today is Wednesday. For Semester 4 Section A, you have 4 classes:
-• 09:00 AM - Design & Analysis of Algorithms (LH-101)
-• 10:00 AM - Database Management Systems (LH-101)
-• 11:15 AM - Artificial Intelligence & ML (LH-102)
-• 01:00 PM - Machine Learning Model Deployment Practical (AI Lab L-201)`;
-      } else if (q.includes('attendance')) {
-        reply = `Your overall verified attendance is 88.5% across 26 recorded classes. You are safely above the 75% university eligibility threshold!`;
-      } else if (q.includes('holiday') || q.includes('break') || q.includes('vacation')) {
-        reply = `The next upcoming institutional holiday is 'National Science & Innovation Day' scheduled in 12 days.`;
-      } else if (q.includes('lab') || q.includes('room')) {
-        reply = `The Advanced AI & Machine Learning Lab is located at L-201 (Second Floor, Tech Wing). It is equipped with 45 high-performance GPU workstations and smart projector.`;
-      } else if (q.includes('assignment') || q.includes('deadline')) {
-        reply = `You have 1 pending submission: 'Lab Assignment 1: Minimax & Alpha-Beta Search' for CS403, due this Friday at 11:59 PM.`;
-      } else {
-        reply = `I can help you monitor daily lectures, compute attendance compliance, find labs, or track coursework deadlines. Feel free to click any of the suggestion chips!`;
+      if (!res.ok) {
+        throw new Error(`Server returned HTTP ${res.status}`);
       }
 
-      setMessages((prev) => [...prev, { sender: 'ai', text: reply }]);
-    }, 450);
+      const data = await res.json();
+      setMessages((prev) => [
+        ...prev,
+        { role: 'assistant', content: data.reply || 'Request processed successfully.' },
+      ]);
+    } catch (err) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: `⚠️ *Communication Error:* Could not connect to the academic AI server (${err.message}). Ensure the backend is operational.`,
+        },
+      ]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const sampleQuestions = [
+    { icon: Clock, label: "What is my full schedule today?", query: "What is my full schedule and timetable for today?" },
+    { icon: CheckCircle2, label: "Check my attendance percentage", query: "What is my current attendance percentage and record?" },
+    { icon: BookOpen, label: "Any pending assignments or tests?", query: "What assignments or upcoming tests are due?" },
+    { icon: MapPin, label: "What are the school location boundaries?", query: "What is the campus GPS location and attendance radius?" },
+  ];
+
+  const renderFormatted = (text) => {
+    const lines = text.split('\n');
+    return lines.map((line, idx) => {
+      let content = line;
+      const parts = content.split(/(\*\*.*?\*\*)/g);
+      const renderedParts = parts.map((part, pIdx) => {
+        if (part.startsWith('**') && part.endsWith('**')) {
+          return <strong key={pIdx} style={{ color: 'var(--text-primary)' }}>{part.slice(2, -2)}</strong>;
+        }
+        return part;
+      });
+
+      if (line.trim().startsWith('•') || line.trim().startsWith('-')) {
+        return (
+          <div key={idx} style={{ display: 'flex', gap: '0.5rem', margin: '0.3rem 0', paddingLeft: '0.5rem' }}>
+            <span style={{ color: 'var(--primary-light)' }}>•</span>
+            <div>{renderedParts}</div>
+          </div>
+        );
+      }
+
+      return (
+        <div key={idx} style={{ minHeight: line === '' ? '0.75rem' : 'auto', margin: '0.2rem 0' }}>
+          {renderedParts}
+        </div>
+      );
+    });
   };
 
   return (
-    <div style={{ maxWidth: '850px', margin: '0 auto' }}>
-      <div className="glass-panel" style={{
-        display: 'flex',
-        flexDirection: 'column',
-        height: '75vh',
-        minHeight: '520px',
-        overflow: 'hidden'
-      }}>
-        {/* Chat Header */}
-        <div style={{
-          padding: '1rem 1.5rem',
-          borderBottom: '1px solid rgba(255,255,255,0.08)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.75rem',
-          background: 'rgba(255,255,255,0.02)'
-        }}>
-          <div style={{
-            width: '38px',
-            height: '38px',
-            borderRadius: '10px',
-            background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#fff'
-          }}>
-            <Bot size={20} />
+    <div style={{ maxWidth: '960px', margin: '0 auto', height: 'calc(100vh - 140px)', display: 'flex', flexDirection: 'column' }}>
+      {/* Header */}
+      <div style={{ marginBottom: '1.25rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+          <div
+            style={{
+              width: '38px',
+              height: '38px',
+              borderRadius: '50%',
+              background: 'linear-gradient(135deg, #4f46e5, #9333ea)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'white',
+            }}
+          >
+            <Bot size={22} />
           </div>
           <div>
-            <div style={{ fontSize: '0.95rem', fontWeight: '700', color: '#fff' }}>SMART CLASS AI Assistant</div>
-            <div style={{ fontSize: '0.72rem', color: '#10b981', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981' }}></span> Active Context Engine
-            </div>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--text-primary)', margin: 0 }}>
+              SMARTCLASS AI Assistant
+            </h2>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+              Real-time context synchronization with Class {user?.className || 'Faculty'} records
+            </p>
           </div>
         </div>
+      </div>
 
-        {/* Messages Area */}
-        <div style={{ flexGrow: 1, overflowY: 'auto', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          {messages.map((m, idx) => (
-            <div
-              key={idx}
-              style={{
-                display: 'flex',
-                gap: '0.65rem',
-                alignSelf: m.sender === 'user' ? 'flex-end' : 'flex-start',
-                maxWidth: '85%'
-              }}
-            >
-              {m.sender === 'ai' && (
-                <div style={{
-                  width: '30px',
-                  height: '30px',
-                  borderRadius: '50%',
-                  background: 'rgba(59, 130, 246, 0.2)',
+      {/* Main Chat Panel */}
+      <div
+        className="glass-panel"
+        style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+        }}
+      >
+        {/* Sample Prompt Shortcuts */}
+        <div
+          style={{
+            padding: '0.75rem 1.25rem',
+            borderBottom: '1px solid var(--border-subtle)',
+            background: 'var(--input-bg)',
+            display: 'flex',
+            gap: '0.5rem',
+            overflowX: 'auto',
+          }}
+        >
+          {sampleQuestions.map((q, idx) => {
+            const Icon = q.icon;
+            return (
+              <button
+                key={idx}
+                onClick={() => handleSend(q.query)}
+                style={{
+                  padding: '0.35rem 0.75rem',
+                  borderRadius: '20px',
+                  background: 'var(--bg-surface)',
+                  border: '1px solid var(--border-subtle)',
+                  color: 'var(--text-secondary)',
+                  fontSize: '0.75rem',
+                  fontWeight: '600',
+                  whiteSpace: 'nowrap',
+                  cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#60a5fa',
-                  flexShrink: 0
-                }}>
-                  <Bot size={16} />
-                </div>
-              )}
-
-              <div style={{
-                padding: '0.75rem 1rem',
-                borderRadius: m.sender === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-                background: m.sender === 'user' ? 'linear-gradient(135deg, #2563eb, #4f46e5)' : 'rgba(255,255,255,0.06)',
-                color: '#ffffff',
-                fontSize: '0.85rem',
-                lineHeight: '1.5',
-                whiteSpace: 'pre-wrap',
-                border: m.sender === 'ai' ? '1px solid rgba(255,255,255,0.08)' : 'none'
-              }}>
-                {m.text}
-              </div>
-
-              {m.sender === 'user' && (
-                <div style={{
-                  width: '30px',
-                  height: '30px',
-                  borderRadius: '50%',
-                  background: 'rgba(255, 255, 255, 0.1)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#fff',
-                  flexShrink: 0
-                }}>
-                  <User size={16} />
-                </div>
-              )}
-            </div>
-          ))}
+                  gap: '0.35rem',
+                }}
+              >
+                <Icon size={13} color="var(--primary-light)" />
+                <span>{q.label}</span>
+              </button>
+            );
+          })}
         </div>
 
-        {/* Quick Chips */}
-        <div style={{
-          padding: '0.5rem 1.25rem',
-          display: 'flex',
-          gap: '0.5rem',
-          overflowX: 'auto',
-          borderTop: '1px solid rgba(255,255,255,0.05)',
-          background: 'rgba(0,0,0,0.2)'
-        }}>
-          {quickChips.map((chip, idx) => (
-            <button
-              key={idx}
-              onClick={() => handleSend(chip)}
-              style={{
-                whiteSpace: 'nowrap',
-                fontSize: '0.75rem',
-                padding: '0.3rem 0.65rem',
-                borderRadius: '16px',
-                background: 'rgba(255,255,255,0.06)',
-                border: '1px solid rgba(255,255,255,0.1)',
-                color: '#93c5fd',
-                cursor: 'pointer',
-                transition: 'all 0.15s'
-              }}
-            >
-              {chip}
-            </button>
-          ))}
+        {/* Message Thread */}
+        <div
+          style={{
+            flex: 1,
+            padding: '1.25rem',
+            overflowY: 'auto',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '1rem',
+          }}
+        >
+          {messages.map((m, idx) => {
+            const isBot = m.role === 'assistant';
+            return (
+              <div
+                key={idx}
+                style={{
+                  display: 'flex',
+                  justifyContent: isBot ? 'flex-start' : 'flex-end',
+                  gap: '0.75rem',
+                }}
+              >
+                {isBot && (
+                  <div
+                    style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '50%',
+                      background: 'linear-gradient(135deg, #4f46e5, #9333ea)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'white',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Bot size={18} />
+                  </div>
+                )}
+
+                <div
+                  style={{
+                    maxWidth: '80%',
+                    padding: '0.85rem 1.15rem',
+                    borderRadius: isBot ? '4px 16px 16px 16px' : '16px 4px 16px 16px',
+                    background: isBot ? 'var(--input-bg)' : 'linear-gradient(135deg, var(--primary), #7c3aed)',
+                    color: isBot ? 'var(--text-secondary)' : '#ffffff',
+                    border: isBot ? '1px solid var(--border-subtle)' : 'none',
+                    fontSize: '0.88rem',
+                    lineHeight: '1.5',
+                  }}
+                >
+                  {renderFormatted(m.content)}
+                </div>
+              </div>
+            );
+          })}
+
+          {isLoading && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', color: 'var(--text-muted)', fontSize: '0.82rem', padding: '0.5rem' }}>
+              <RefreshCw size={16} className="animate-spin" />
+              <span>Analyzing live database and drafting response...</span>
+            </div>
+          )}
+          <div ref={messagesEndRef} />
         </div>
 
         {/* Input Bar */}
         <form
-          onSubmit={(e) => { e.preventDefault(); handleSend(); }}
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleSend();
+          }}
           style={{
             padding: '1rem 1.25rem',
-            borderTop: '1px solid rgba(255,255,255,0.08)',
+            borderTop: '1px solid var(--border-subtle)',
+            background: 'var(--bg-surface)',
             display: 'flex',
-            gap: '0.5rem'
+            gap: '0.75rem',
           }}
         >
           <input
             type="text"
+            placeholder="Type your question here (e.g. 'What is my attendance?', 'Next class?', 'Explain Newton's laws')..."
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask about timetable, attendance, holidays, lab venues..."
+            disabled={isLoading}
             style={{
-              flexGrow: 1,
+              flex: 1,
               padding: '0.75rem 1rem',
               borderRadius: '12px',
-              background: 'rgba(255,255,255,0.06)',
-              border: '1px solid rgba(255,255,255,0.12)',
-              color: '#fff',
-              fontSize: '0.85rem',
-              outline: 'none'
+              background: 'var(--input-bg)',
+              border: '1px solid var(--input-border)',
+              color: 'var(--text-primary)',
+              fontSize: '0.9rem',
+              outline: 'none',
             }}
           />
           <button
             type="submit"
+            disabled={isLoading || !input.trim()}
             className="btn-primary-gradient"
             style={{
               padding: '0.75rem 1.25rem',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              borderRadius: '12px'
+              borderRadius: '12px',
+              opacity: input.trim() ? 1 : 0.6,
+              cursor: input.trim() ? 'pointer' : 'default',
             }}
           >
-            <Send size={16} />
+            <Send size={18} />
           </button>
         </form>
       </div>

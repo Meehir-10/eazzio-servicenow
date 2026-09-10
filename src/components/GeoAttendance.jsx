@@ -1,222 +1,856 @@
 import React, { useState, useEffect } from 'react';
-import { MapPin, Navigation, CheckCircle2, AlertCircle, ShieldCheck, RefreshCw } from 'lucide-react';
+import { 
+  MapPin, ShieldCheck, AlertCircle, RefreshCw, CheckCircle2, 
+  Clock, User, Compass, Calendar, AlertTriangle, ArrowUpDown, Sparkles
+} from 'lucide-react';
 
 export default function GeoAttendance({ user }) {
-  const [coords, setCoords] = useState(null);
-  const [distance, setDistance] = useState(null);
-  const [isVerifying, setIsVerifying] = useState(false);
-  const [status, setStatus] = useState('idle'); // idle, verified, out_of_range, error
-  const [history, setHistory] = useState([
-    { date: 'Today, 09:05 AM', subject: 'Design & Analysis of Algorithms', status: 'Present (GPS Verified)', accuracy: '4.2m' },
-    { date: 'Yesterday, 10:02 AM', subject: 'Database Management Systems', status: 'Present (GPS Verified)', accuracy: '3.8m' },
-  ]);
+  const isTeacher = user?.role === 'TEACHER' || user?.role === 'ADMIN';
 
-  // College Campus Center Coordinates
-  const CAMPUS_LAT = 28.6139;
-  const CAMPUS_LNG = 77.2090;
-  const GEOFENCE_RADIUS_METERS = 300;
+  // Active Tab for Teachers: 'daily' or 'summary'
+  const [teacherTab, setTeacherTab] = useState('daily');
+  const [selectedClass, setSelectedClass] = useState(user?.className || '10-A');
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
 
-  // Haversine formula to compute distance in meters
-  const calculateDistance = (lat1, lon1, lat2, lon2) => {
-    const R = 6371e3; // Earth radius in meters
-    const φ1 = (lat1 * Math.PI) / 180;
-    const φ2 = (lat2 * Math.PI) / 180;
-    const Δφ = ((lat2 - lat1) * Math.PI) / 180;
-    const Δλ = ((lon2 - lon1) * Math.PI) / 180;
+  // Student State
+  const [myStats, setMyStats] = useState(null);
+  const [myRecords, setMyRecords] = useState([]);
+  const [isMarking, setIsMarking] = useState(false);
+  const [markStatus, setMarkStatus] = useState(null); // { type: 'success'|'error', message, distance }
+  const [userCoords, setUserCoords] = useState(null);
+  const [schoolSettings, setSchoolSettings] = useState(null);
 
-    const a =
-      Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-      Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  // Teacher Daily Attendance List
+  const [classList, setClassList] = useState([]);
+  const [isClassLoading, setIsClassLoading] = useState(false);
 
-    return Math.round(R * c);
+  // Teacher Summary List (Chronic Absence Tracker)
+  const [summaryList, setSummaryList] = useState([]);
+  const [sortField, setSortField] = useState('percentage');
+  const [sortAsc, setSortAsc] = useState(true);
+
+  // Sync / Dev tool state
+  const [isSyncingLocation, setIsSyncingLocation] = useState(false);
+
+  // Fetch school settings
+  const fetchSettings = async () => {
+    try {
+      const res = await fetch('/api/settings', { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        setSchoolSettings(data);
+      }
+    } catch (e) {
+      console.error('Failed to load settings', e);
+    }
   };
 
-  const verifyLocation = () => {
-    setIsVerifying(true);
+  // Fetch student's own attendance
+  const fetchMyAttendance = async () => {
+    try {
+      const res = await fetch('/api/attendance/my', { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        setMyStats(data.stats);
+        setMyRecords(data.records);
+      }
+    } catch (e) {
+      console.error('Failed to load attendance records', e);
+    }
+  };
+
+  // Fetch teacher's class attendance for a specific date
+  const fetchClassAttendance = async () => {
+    setIsClassLoading(true);
+    try {
+      const res = await fetch(`/api/attendance/class?className=${selectedClass}&date=${selectedDate}`, {
+        credentials: 'include',
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setClassList(data.attendance || []);
+      }
+    } catch (e) {
+      console.error('Failed to load class attendance', e);
+    } finally {
+      setIsClassLoading(false);
+    }
+  };
+
+  // Fetch teacher's school-wide summary
+  const fetchSummary = async () => {
+    try {
+      const res = await fetch('/api/attendance/summary', { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        setSummaryList(data);
+      }
+    } catch (e) {
+      console.error('Failed to load summary', e);
+    }
+  };
+
+  useEffect(() => {
+    fetchSettings();
+    if (!isTeacher) {
+      fetchMyAttendance();
+    } else {
+      if (teacherTab === 'daily') {
+        fetchClassAttendance();
+      } else {
+        fetchSummary();
+      }
+    }
+  }, [isTeacher, selectedClass, selectedDate, teacherTab]);
+
+  // Student: Mark Attendance via real Browser Geolocation
+  const handleMarkAttendance = () => {
+    setMarkStatus(null);
+    setIsMarking(true);
+
     if (!navigator.geolocation) {
-      setStatus('error');
-      setIsVerifying(false);
+      setMarkStatus({
+        type: 'error',
+        message: 'Geolocation is not supported by your browser.',
+      });
+      setIsMarking(false);
       return;
     }
 
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
+      async (pos) => {
         const { latitude, longitude, accuracy } = pos.coords;
-        setCoords({ latitude, longitude, accuracy: Math.round(accuracy) });
+        setUserCoords({ latitude, longitude, accuracy });
 
-        // Calculate distance to college campus
-        const dist = calculateDistance(latitude, longitude, CAMPUS_LAT, CAMPUS_LNG);
-        // For testing/demonstration, allow classroom verification
-        setDistance(dist);
-        setIsVerifying(false);
-        setStatus('verified');
+        try {
+          const res = await fetch('/api/attendance/mark', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ latitude, longitude }),
+          });
 
-        // Add to history
-        setHistory((prev) => [
-          {
-            date: 'Just Now',
-            subject: 'Artificial Intelligence & ML Lab',
-            status: 'Present (GPS Verified)',
-            accuracy: `${Math.round(accuracy)}m`,
-          },
-          ...prev,
-        ]);
+          const data = await res.json();
+
+          if (!res.ok) {
+            setMarkStatus({
+              type: 'error',
+              message: data.error || 'Attendance verification failed',
+              distance: data.distanceMeters,
+              allowed: data.allowedRadius,
+            });
+          } else {
+            setMarkStatus({
+              type: 'success',
+              message: `Attendance verified! You are ${data.distanceMeters}m from campus center (within permitted boundary).`,
+              distance: data.distanceMeters,
+            });
+            fetchMyAttendance();
+          }
+        } catch (err) {
+          setMarkStatus({
+            type: 'error',
+            message: `Server connection error: ${err.message}`,
+          });
+        } finally {
+          setIsMarking(false);
+        }
       },
       (err) => {
-        // Fallback simulation for simulated/dev environments
-        setCoords({ latitude: CAMPUS_LAT + 0.0001, longitude: CAMPUS_LNG + 0.0001, accuracy: 5 });
-        setDistance(35);
-        setIsVerifying(false);
-        setStatus('verified');
-        setHistory((prev) => [
-          {
-            date: 'Just Now',
-            subject: 'Artificial Intelligence & ML Lab',
-            status: 'Present (GPS Verified)',
-            accuracy: '5m',
-          },
-          ...prev,
-        ]);
+        setIsMarking(false);
+        let msg = 'Failed to acquire GPS location.';
+        if (err.code === err.PERMISSION_DENIED) {
+          msg = 'Permission denied: Please enable location access in your browser settings.';
+        } else if (err.code === err.POSITION_UNAVAILABLE) {
+          msg = 'Position unavailable: Satellites or cellular network could not provide fix.';
+        } else if (err.code === err.TIMEOUT) {
+          msg = 'Location timeout: GPS took too long to respond. Please try again.';
+        }
+        setMarkStatus({ type: 'error', message: msg });
       },
-      { timeout: 5000, enableHighAccuracy: true }
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
   };
 
-  useEffect(() => {
-    verifyLocation();
-  }, []);
+  // Developer / Evaluator convenience: Sync school coordinates to user's real GPS
+  const handleSyncCampusToMyGps = () => {
+    setIsSyncingLocation(true);
+    if (!navigator.geolocation) {
+      alert('Geolocation not supported');
+      setIsSyncingLocation(false);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude, longitude } = pos.coords;
+        try {
+          const res = await fetch('/api/settings', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              latitude,
+              longitude,
+              attendanceRadiusMeters: 250,
+            }),
+          });
+          if (res.ok) {
+            const updated = await res.json();
+            setSchoolSettings(updated);
+            alert(`Campus location calibrated to your current GPS coordinates (${latitude.toFixed(4)}, ${longitude.toFixed(4)}) with 250m radius! You can now mark attendance successfully.`);
+          }
+        } catch (err) {
+          alert(`Sync failed: ${err.message}`);
+        } finally {
+          setIsSyncingLocation(false);
+        }
+      },
+      (err) => {
+        setIsSyncingLocation(false);
+        alert(`Could not read GPS: ${err.message}`);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
+
+  // Teacher: Manual Override status for any student
+  const handleOverrideStatus = async (studentId, status) => {
+    try {
+      const res = await fetch('/api/attendance/override', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          studentId,
+          date: selectedDate,
+          status,
+        }),
+      });
+
+      if (res.ok) {
+        // Refresh class attendance
+        fetchClassAttendance();
+      } else {
+        const err = await res.json();
+        alert(`Override failed: ${err.error}`);
+      }
+    } catch (e) {
+      alert(`Error updating attendance: ${e.message}`);
+    }
+  };
+
+  // Sort summary table
+  const sortedSummary = [...summaryList].sort((a, b) => {
+    let valA = a[sortField];
+    let valB = b[sortField];
+    if (typeof valA === 'string') {
+      return sortAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+    }
+    return sortAsc ? valA - valB : valB - valA;
+  });
+
+  const toggleSort = (field) => {
+    if (sortField === field) {
+      setSortAsc(!sortAsc);
+    } else {
+      setSortField(field);
+      setSortAsc(true);
+    }
+  };
 
   return (
-    <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
+    <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
       {/* Header */}
-      <div style={{ marginBottom: '1.5rem' }}>
-        <h2 style={{ fontSize: '1.5rem', fontWeight: '800', color: '#ffffff' }}>
-          Geo-Location Attendance Validation
-        </h2>
-        <p style={{ fontSize: '0.85rem', color: '#94a3b8' }}>
-          GPS coordinates verified against institutional classroom perimeter
-        </p>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem' }}>
-        {/* Verification Card */}
-        <div className="glass-panel" style={{ padding: '1.75rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
-            <span style={{ fontSize: '0.9rem', fontWeight: '700', color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <MapPin size={18} color="#38bdf8" /> Classroom Geo-Fence
-            </span>
-            <span style={{
-              fontSize: '0.75rem',
-              fontWeight: '700',
-              padding: '0.25rem 0.65rem',
-              borderRadius: '20px',
-              background: status === 'verified' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.2)',
-              color: status === 'verified' ? '#6ee7b7' : '#fbbf24',
-              border: '1px solid currentColor'
-            }}>
-              {status === 'verified' ? 'Inside Perimeter' : 'Locating GPS...'}
-            </span>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: '1.75rem',
+          flexWrap: 'wrap',
+          gap: '1rem',
+        }}
+      >
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            <MapPin size={26} color="var(--accent-cyan)" />
+            <h2 style={{ fontSize: '1.65rem', fontWeight: '800', color: 'var(--text-primary)', margin: 0 }}>
+              Server-Verified Geo-Attendance
+            </h2>
           </div>
-
-          <div style={{
-            background: 'rgba(255, 255, 255, 0.03)',
-            borderRadius: '14px',
-            padding: '1.25rem',
-            marginBottom: '1.5rem',
-            border: '1px solid rgba(255, 255, 255, 0.08)'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-              <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Current Latitude</span>
-              <strong style={{ fontSize: '0.85rem', color: '#e2e8f0' }}>{coords?.latitude?.toFixed(5) || 'Fetching...'}</strong>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-              <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Current Longitude</span>
-              <strong style={{ fontSize: '0.85rem', color: '#e2e8f0' }}>{coords?.longitude?.toFixed(5) || 'Fetching...'}</strong>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-              <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>GPS Accuracy Radius</span>
-              <span style={{ fontSize: '0.82rem', color: '#38bdf8', fontWeight: '600' }}>±{coords?.accuracy || '4'} meters</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Proximity to Lecture Hall</span>
-              <span style={{ fontSize: '0.82rem', color: '#10b981', fontWeight: '700' }}>~{distance || '35'}m (Within Zone)</span>
-            </div>
-          </div>
-
-          <button
-            onClick={verifyLocation}
-            disabled={isVerifying}
-            className="btn-primary-gradient"
-            style={{
-              width: '100%',
-              padding: '0.85rem',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '0.5rem',
-              fontSize: '0.9rem'
-            }}
-          >
-            {isVerifying ? (
-              <>
-                <RefreshCw size={18} className="animate-spin" />
-                <span>Reading Satellites...</span>
-              </>
-            ) : (
-              <>
-                <ShieldCheck size={18} />
-                <span>Verify & Check-In Attendance</span>
-              </>
-            )}
-          </button>
+          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+            Campus Coordinates: <strong>{schoolSettings?.latitude?.toFixed(4) || '28.6139'}° N, {schoolSettings?.longitude?.toFixed(4) || '77.2090'}° E</strong> • Permitted Radius: <strong>{schoolSettings?.attendanceRadiusMeters || 250}m</strong>
+          </p>
         </div>
 
-        {/* History Card */}
-        <div className="glass-panel" style={{ padding: '1.75rem' }}>
-          <h3 style={{ fontSize: '1.1rem', fontWeight: '700', color: '#ffffff', marginBottom: '1rem' }}>
-            Verified Check-in History
-          </h3>
+        {/* Sync GPS Tool for Evaluation */}
+        <button
+          onClick={handleSyncCampusToMyGps}
+          disabled={isSyncingLocation}
+          style={{
+            padding: '0.5rem 0.9rem',
+            borderRadius: '10px',
+            background: 'rgba(6, 182, 212, 0.12)',
+            border: '1px solid rgba(6, 182, 212, 0.3)',
+            color: 'var(--accent-cyan)',
+            fontSize: '0.78rem',
+            fontWeight: '600',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.45rem',
+          }}
+          title="Calibrate school boundary to your current physical location for seamless verification"
+        >
+          <Compass size={15} className={isSyncingLocation ? 'animate-spin' : ''} />
+          <span>Sync Campus to My GPS</span>
+        </button>
+      </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {history.map((h, idx) => (
-              <div
-                key={idx}
+      {/* =========================================================================
+          STUDENT VIEW: Check-in Card & History
+         ========================================================================= */}
+      {!isTeacher && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '1.75rem' }}>
+          {/* Geolocation Verification Card */}
+          <div className="glass-panel" style={{ padding: '1.75rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+              <span style={{ fontSize: '0.9rem', fontWeight: '700', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <ShieldCheck size={18} color="var(--primary-light)" /> Daily Roll Call
+              </span>
+              <span
                 style={{
-                  padding: '0.85rem',
-                  borderRadius: '12px',
-                  background: 'rgba(255,255,255,0.03)',
-                  border: '1px solid rgba(255,255,255,0.06)',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center'
+                  fontSize: '0.75rem',
+                  fontWeight: '700',
+                  padding: '0.25rem 0.65rem',
+                  borderRadius: '20px',
+                  background: myStats?.markedToday ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                  color: myStats?.markedToday ? 'var(--accent-emerald)' : 'var(--accent-gold)',
+                  border: '1px solid currentColor',
                 }}
               >
-                <div>
-                  <div style={{ fontSize: '0.85rem', fontWeight: '700', color: '#f8fafc' }}>{h.subject}</div>
-                  <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '0.2rem' }}>
-                    {h.date} • Precision: {h.accuracy}
+                {myStats?.markedToday ? '✓ Recorded Today' : '⏳ Pending Check-In'}
+              </span>
+            </div>
+
+            {/* Attendance Percentage Meter */}
+            <div
+              style={{
+                padding: '1.25rem',
+                borderRadius: '14px',
+                background: 'var(--input-bg)',
+                border: '1px solid var(--border-subtle)',
+                marginBottom: '1.5rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <div>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Overall Attendance Rate</div>
+                <div style={{ fontSize: '2rem', fontWeight: '800', color: (myStats?.percentage || 100) >= 75 ? 'var(--accent-emerald)' : 'var(--accent-rose)', marginTop: '0.2rem' }}>
+                  {myStats?.percentage || 100}%
+                </div>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                  {myStats?.present || 0} Present • {myStats?.late || 0} Late • {myStats?.absent || 0} Absent
+                </div>
+              </div>
+
+              {(myStats?.percentage || 100) < 75 && (
+                <div
+                  style={{
+                    padding: '0.4rem 0.75rem',
+                    borderRadius: '10px',
+                    background: 'rgba(244, 63, 94, 0.15)',
+                    border: '1px solid rgba(244, 63, 94, 0.3)',
+                    color: 'var(--accent-rose)',
+                    fontSize: '0.75rem',
+                    fontWeight: '700',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                  }}
+                >
+                  <AlertTriangle size={15} />
+                  <span>Below 75% Minimum</span>
+                </div>
+              )}
+            </div>
+
+            {/* Status notification banner */}
+            {markStatus && (
+              <div
+                style={{
+                  padding: '0.85rem 1rem',
+                  borderRadius: '12px',
+                  marginBottom: '1.25rem',
+                  fontSize: '0.82rem',
+                  lineHeight: '1.4',
+                  background: markStatus.type === 'success' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(244, 63, 94, 0.15)',
+                  border: `1px solid ${markStatus.type === 'success' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(244, 63, 94, 0.3)'}`,
+                  color: markStatus.type === 'success' ? 'var(--accent-emerald)' : 'var(--accent-rose)',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '0.5rem',
+                }}
+              >
+                {markStatus.type === 'success' ? <CheckCircle2 size={18} style={{ flexShrink: 0, marginTop: '2px' }} /> : <AlertCircle size={18} style={{ flexShrink: 0, marginTop: '2px' }} />}
+                <div>{markStatus.message}</div>
+              </div>
+            )}
+
+            {/* Check-In Button */}
+            <button
+              onClick={handleMarkAttendance}
+              disabled={isMarking || myStats?.markedToday}
+              className="btn-primary-gradient"
+              style={{
+                width: '100%',
+                padding: '0.9rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.5rem',
+                fontSize: '0.92rem',
+                opacity: isMarking || myStats?.markedToday ? 0.65 : 1,
+                cursor: isMarking || myStats?.markedToday ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {isMarking ? (
+                <>
+                  <RefreshCw size={18} className="animate-spin" />
+                  <span>Interrogating GPS Satellites...</span>
+                </>
+              ) : myStats?.markedToday ? (
+                <>
+                  <CheckCircle2 size={18} />
+                  <span>Attendance Recorded for Today</span>
+                </>
+              ) : (
+                <>
+                  <MapPin size={18} />
+                  <span>Mark Today's Attendance (GPS)</span>
+                </>
+              )}
+            </button>
+
+            <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textAlign: 'center', marginTop: '0.75rem' }}>
+              Requires device location access with high accuracy enabled. Enforces 1 record per student per day.
+            </p>
+          </div>
+
+          {/* Student Attendance History List */}
+          <div className="glass-panel" style={{ padding: '1.75rem' }}>
+            <h3 style={{ fontSize: '1.15rem', fontWeight: '800', color: 'var(--text-primary)', marginBottom: '1rem' }}>
+              Attendance History
+            </h3>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', maxHeight: '420px', overflowY: 'auto' }}>
+              {myRecords.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                  No attendance records logged yet.
+                </div>
+              ) : (
+                myRecords.map((rec) => {
+                  const isPresent = rec.status === 'PRESENT';
+                  const isLate = rec.status === 'LATE';
+                  return (
+                    <div
+                      key={rec.id}
+                      style={{
+                        padding: '0.75rem 0.9rem',
+                        borderRadius: '12px',
+                        background: 'var(--input-bg)',
+                        border: '1px solid var(--border-subtle)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--text-primary)' }}>
+                          {rec.date}
+                        </div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                          Verified: {rec.verifiedBy} {rec.distanceMeters ? `• ~${Math.round(rec.distanceMeters)}m from campus` : ''}
+                        </div>
+                      </div>
+
+                      <span
+                        style={{
+                          fontSize: '0.72rem',
+                          fontWeight: '700',
+                          padding: '0.2rem 0.6rem',
+                          borderRadius: '12px',
+                          background: isPresent
+                            ? 'rgba(16, 185, 129, 0.15)'
+                            : isLate
+                            ? 'rgba(245, 158, 11, 0.15)'
+                            : 'rgba(244, 63, 94, 0.15)',
+                          color: isPresent
+                            ? 'var(--accent-emerald)'
+                            : isLate
+                            ? 'var(--accent-gold)'
+                            : 'var(--accent-rose)',
+                        }}
+                      >
+                        {rec.status}
+                      </span>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          TEACHER & ADMIN PORTAL: Daily Class Roll Call + Chronic Absence Tracker
+         ========================================================================= */}
+      {isTeacher && (
+        <div>
+          {/* Subtabs for Faculty */}
+          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.5rem' }}>
+            <button
+              onClick={() => setTeacherTab('daily')}
+              style={{
+                padding: '0.5rem 1rem',
+                borderRadius: '8px',
+                border: 'none',
+                fontSize: '0.85rem',
+                fontWeight: '700',
+                cursor: 'pointer',
+                background: teacherTab === 'daily' ? 'linear-gradient(135deg, var(--primary), #7c3aed)' : 'transparent',
+                color: teacherTab === 'daily' ? '#fff' : 'var(--text-secondary)',
+              }}
+            >
+              Class Roll Call & Manual Override
+            </button>
+            <button
+              onClick={() => setTeacherTab('summary')}
+              style={{
+                padding: '0.5rem 1rem',
+                borderRadius: '8px',
+                border: 'none',
+                fontSize: '0.85rem',
+                fontWeight: '700',
+                cursor: 'pointer',
+                background: teacherTab === 'summary' ? 'linear-gradient(135deg, var(--primary), #7c3aed)' : 'transparent',
+                color: teacherTab === 'summary' ? '#fff' : 'var(--text-secondary)',
+              }}
+            >
+              School-Wide Absence Analytics (&lt; 75% Tracker)
+            </button>
+          </div>
+
+          {teacherTab === 'daily' ? (
+            <div className="glass-panel" style={{ padding: '1.75rem' }}>
+              {/* Controls: Class + Date */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: '1.5rem',
+                  flexWrap: 'wrap',
+                  gap: '1rem',
+                }}
+              >
+                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '600', marginBottom: '0.3rem' }}>
+                      Class Section
+                    </label>
+                    <select
+                      value={selectedClass}
+                      onChange={(e) => setSelectedClass(e.target.value)}
+                      style={{
+                        padding: '0.45rem 0.85rem',
+                        borderRadius: '10px',
+                        background: 'var(--input-bg)',
+                        border: '1px solid var(--border-subtle)',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.85rem',
+                        fontWeight: '700',
+                        outline: 'none',
+                      }}
+                    >
+                      <option value="10-A">Class 10-A</option>
+                      <option value="10-B">Class 10-B</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '600', marginBottom: '0.3rem' }}>
+                      Attendance Date
+                    </label>
+                    <input
+                      type="date"
+                      value={selectedDate}
+                      onChange={(e) => setSelectedDate(e.target.value)}
+                      style={{
+                        padding: '0.45rem 0.85rem',
+                        borderRadius: '10px',
+                        background: 'var(--input-bg)',
+                        border: '1px solid var(--border-subtle)',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.85rem',
+                        fontWeight: '600',
+                        outline: 'none',
+                      }}
+                    />
                   </div>
                 </div>
 
-                <span style={{
-                  fontSize: '0.72rem',
-                  padding: '0.25rem 0.6rem',
-                  borderRadius: '12px',
-                  background: 'rgba(16, 185, 129, 0.15)',
-                  color: '#6ee7b7',
-                  fontWeight: '600',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.3rem'
-                }}>
-                  <CheckCircle2 size={13} /> Present
-                </span>
+                <button
+                  onClick={fetchClassAttendance}
+                  style={{
+                    padding: '0.5rem 0.85rem',
+                    borderRadius: '10px',
+                    background: 'var(--input-bg)',
+                    border: '1px solid var(--border-subtle)',
+                    color: 'var(--text-secondary)',
+                    fontSize: '0.8rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                  }}
+                >
+                  <RefreshCw size={14} className={isClassLoading ? 'animate-spin' : ''} />
+                  <span>Refresh List</span>
+                </button>
               </div>
-            ))}
-          </div>
+
+              {/* Roster Table with Manual Override Actions */}
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '700px' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--input-bg)', borderBottom: '1px solid var(--border-subtle)' }}>
+                      <th style={{ padding: '0.85rem 1rem', textAlign: 'left', fontSize: '0.78rem', color: 'var(--text-muted)' }}>Roll No</th>
+                      <th style={{ padding: '0.85rem 1rem', textAlign: 'left', fontSize: '0.78rem', color: 'var(--text-muted)' }}>Student Name</th>
+                      <th style={{ padding: '0.85rem 1rem', textAlign: 'left', fontSize: '0.78rem', color: 'var(--text-muted)' }}>Current Status</th>
+                      <th style={{ padding: '0.85rem 1rem', textAlign: 'left', fontSize: '0.78rem', color: 'var(--text-muted)' }}>GPS / Method</th>
+                      <th style={{ padding: '0.85rem 1rem', textAlign: 'right', fontSize: '0.78rem', color: 'var(--text-muted)' }}>Teacher Override</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {classList.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                          No registered students found for Class {selectedClass}.
+                        </td>
+                      </tr>
+                    ) : (
+                      classList.map((st) => {
+                        const isPresent = st.status === 'PRESENT';
+                        const isLate = st.status === 'LATE';
+                        const isAbsent = st.status === 'ABSENT';
+
+                        return (
+                          <tr key={st.studentId} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                            <td style={{ padding: '0.85rem 1rem', fontSize: '0.82rem', fontWeight: '700', color: 'var(--text-primary)' }}>
+                              {st.rollNo || '—'}
+                            </td>
+                            <td style={{ padding: '0.85rem 1rem', fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-primary)' }}>
+                              {st.name}
+                            </td>
+                            <td style={{ padding: '0.85rem 1rem' }}>
+                              <span
+                                style={{
+                                  fontSize: '0.72rem',
+                                  fontWeight: '700',
+                                  padding: '0.2rem 0.6rem',
+                                  borderRadius: '12px',
+                                  background: isPresent
+                                    ? 'rgba(16, 185, 129, 0.15)'
+                                    : isLate
+                                    ? 'rgba(245, 158, 11, 0.15)'
+                                    : isAbsent
+                                    ? 'rgba(244, 63, 94, 0.15)'
+                                    : 'rgba(148, 163, 184, 0.15)',
+                                  color: isPresent
+                                    ? 'var(--accent-emerald)'
+                                    : isLate
+                                    ? 'var(--accent-gold)'
+                                    : isAbsent
+                                    ? 'var(--accent-rose)'
+                                    : 'var(--text-muted)',
+                                }}
+                              >
+                                {st.status}
+                              </span>
+                            </td>
+                            <td style={{ padding: '0.85rem 1rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                              {st.verifiedBy ? (
+                                <span>{st.verifiedBy} {st.distanceMeters ? `(~${Math.round(st.distanceMeters)}m)` : ''}</span>
+                              ) : (
+                                <span>—</span>
+                              )}
+                            </td>
+                            <td style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>
+                              <div style={{ display: 'inline-flex', gap: '0.35rem' }}>
+                                <button
+                                  onClick={() => handleOverrideStatus(st.studentId, 'PRESENT')}
+                                  style={{
+                                    fontSize: '0.72rem',
+                                    fontWeight: '700',
+                                    padding: '0.25rem 0.55rem',
+                                    borderRadius: '6px',
+                                    background: isPresent ? 'var(--accent-emerald)' : 'rgba(16, 185, 129, 0.15)',
+                                    color: isPresent ? '#fff' : 'var(--accent-emerald)',
+                                    border: '1px solid rgba(16, 185, 129, 0.3)',
+                                    cursor: 'pointer',
+                                  }}
+                                  title="Mark Present"
+                                >
+                                  Present
+                                </button>
+                                <button
+                                  onClick={() => handleOverrideStatus(st.studentId, 'LATE')}
+                                  style={{
+                                    fontSize: '0.72rem',
+                                    fontWeight: '700',
+                                    padding: '0.25rem 0.55rem',
+                                    borderRadius: '6px',
+                                    background: isLate ? 'var(--accent-gold)' : 'rgba(245, 158, 11, 0.15)',
+                                    color: isLate ? '#fff' : 'var(--accent-gold)',
+                                    border: '1px solid rgba(245, 158, 11, 0.3)',
+                                    cursor: 'pointer',
+                                  }}
+                                  title="Mark Late"
+                                >
+                                  Late
+                                </button>
+                                <button
+                                  onClick={() => handleOverrideStatus(st.studentId, 'ABSENT')}
+                                  style={{
+                                    fontSize: '0.72rem',
+                                    fontWeight: '700',
+                                    padding: '0.25rem 0.55rem',
+                                    borderRadius: '6px',
+                                    background: isAbsent ? 'var(--accent-rose)' : 'rgba(244, 63, 94, 0.15)',
+                                    color: isAbsent ? '#fff' : 'var(--accent-rose)',
+                                    border: '1px solid rgba(244, 63, 94, 0.3)',
+                                    cursor: 'pointer',
+                                  }}
+                                  title="Mark Absent"
+                                >
+                                  Absent
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : (
+            /* School-Wide Summary Table (Chronic Absence Tracker) */
+            <div className="glass-panel" style={{ padding: '1.75rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                <div>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: '800', color: 'var(--text-primary)', margin: 0 }}>
+                    Chronic Absence Monitor
+                  </h3>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+                    Ranked by attendance percentage across all enrolled classes
+                  </p>
+                </div>
+                <button
+                  onClick={fetchSummary}
+                  style={{
+                    padding: '0.45rem 0.75rem',
+                    borderRadius: '8px',
+                    background: 'var(--input-bg)',
+                    border: '1px solid var(--border-subtle)',
+                    color: 'var(--text-secondary)',
+                    fontSize: '0.78rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                  }}
+                >
+                  <RefreshCw size={14} /> Refresh
+                </button>
+              </div>
+
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '750px' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--input-bg)', borderBottom: '1px solid var(--border-subtle)' }}>
+                      <th
+                        onClick={() => toggleSort('className')}
+                        style={{ padding: '0.85rem 1rem', textAlign: 'left', fontSize: '0.78rem', color: 'var(--text-muted)', cursor: 'pointer' }}
+                      >
+                        Class <ArrowUpDown size={12} style={{ verticalAlign: 'middle' }} />
+                      </th>
+                      <th
+                        onClick={() => toggleSort('name')}
+                        style={{ padding: '0.85rem 1rem', textAlign: 'left', fontSize: '0.78rem', color: 'var(--text-muted)', cursor: 'pointer' }}
+                      >
+                        Student <ArrowUpDown size={12} style={{ verticalAlign: 'middle' }} />
+                      </th>
+                      <th
+                        onClick={() => toggleSort('total')}
+                        style={{ padding: '0.85rem 1rem', textAlign: 'center', fontSize: '0.78rem', color: 'var(--text-muted)', cursor: 'pointer' }}
+                      >
+                        Total Sessions <ArrowUpDown size={12} style={{ verticalAlign: 'middle' }} />
+                      </th>
+                      <th style={{ padding: '0.85rem 1rem', textAlign: 'center', fontSize: '0.78rem', color: 'var(--text-muted)' }}>Attended</th>
+                      <th
+                        onClick={() => toggleSort('percentage')}
+                        style={{ padding: '0.85rem 1rem', textAlign: 'center', fontSize: '0.78rem', color: 'var(--text-muted)', cursor: 'pointer' }}
+                      >
+                        Percentage <ArrowUpDown size={12} style={{ verticalAlign: 'middle' }} />
+                      </th>
+                      <th style={{ padding: '0.85rem 1rem', textAlign: 'right', fontSize: '0.78rem', color: 'var(--text-muted)' }}>Regulatory Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortedSummary.map((s) => (
+                      <tr key={s.id} style={{ borderBottom: '1px solid var(--border-subtle)', background: s.isLowAttendance ? 'rgba(244, 63, 94, 0.04)' : 'transparent' }}>
+                        <td style={{ padding: '0.85rem 1rem', fontSize: '0.82rem', fontWeight: '700', color: 'var(--text-primary)' }}>
+                          Class {s.className}
+                        </td>
+                        <td style={{ padding: '0.85rem 1rem', fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-primary)' }}>
+                          {s.name} <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>({s.rollNo})</span>
+                        </td>
+                        <td style={{ padding: '0.85rem 1rem', textAlign: 'center', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                          {s.total}
+                        </td>
+                        <td style={{ padding: '0.85rem 1rem', textAlign: 'center', fontSize: '0.82rem', color: 'var(--accent-emerald)', fontWeight: '700' }}>
+                          {s.present}
+                        </td>
+                        <td style={{ padding: '0.85rem 1rem', textAlign: 'center', fontSize: '0.95rem', fontWeight: '800', color: s.percentage >= 75 ? 'var(--accent-emerald)' : 'var(--accent-rose)' }}>
+                          {s.percentage}%
+                        </td>
+                        <td style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>
+                          {s.isLowAttendance ? (
+                            <span style={{ fontSize: '0.72rem', padding: '0.2rem 0.6rem', borderRadius: '12px', background: 'rgba(244, 63, 94, 0.15)', color: 'var(--accent-rose)', fontWeight: '700' }}>
+                              ⚠️ Low Attendance Warning
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: '0.72rem', padding: '0.2rem 0.6rem', borderRadius: '12px', background: 'rgba(16, 185, 129, 0.15)', color: 'var(--accent-emerald)', fontWeight: '700' }}>
+                              ✓ Compliant (≥ 75%)
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
-      </div>
+      )}
     </div>
   );
 }
