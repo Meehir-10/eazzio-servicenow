@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Calendar, Clock, CheckCircle2, AlertCircle, BookOpen, 
-  MapPin, ArrowRight, FileText, Users, Plus, ShieldCheck, Sparkles, AlertTriangle
+  MapPin, ArrowRight, FileText, Users, Plus, ShieldCheck, Sparkles, AlertTriangle, Camera
 } from 'lucide-react';
+import { safeJson } from '../utils/api';
 
 export default function Dashboard({ user, setActiveTab, onOpenAiBot }) {
   const isTeacher = user?.role === 'TEACHER' || user?.role === 'ADMIN';
@@ -12,6 +13,17 @@ export default function Dashboard({ user, setActiveTab, onOpenAiBot }) {
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(timer);
+  }, []);
+
+  // CCTV Stats
+  const [cctvStats, setCctvStats] = useState(null);
+  useEffect(() => {
+    fetch('/api/cctv/stats', { credentials: 'include' })
+      .then((res) => (res.ok ? safeJson(res) : null))
+      .then((data) => {
+        if (data) setCctvStats(data);
+      })
+      .catch(console.error);
   }, []);
 
   // Student Metrics State
@@ -34,7 +46,7 @@ export default function Dashboard({ user, setActiveTab, onOpenAiBot }) {
     if (!isTeacher) {
       // 1. Attendance
       fetch('/api/attendance/my', { credentials: 'include' })
-        .then((res) => (res.ok ? res.json() : null))
+        .then((res) => (res.ok ? safeJson(res) : null))
         .then((data) => {
           if (data?.stats) {
             setAttendanceRate(data.stats.percentage);
@@ -45,7 +57,7 @@ export default function Dashboard({ user, setActiveTab, onOpenAiBot }) {
 
       // 2. Coursework
       fetch('/api/assignments', { credentials: 'include' })
-        .then((res) => (res.ok ? res.json() : []))
+        .then(async (res) => (res.ok ? (await safeJson(res)) || [] : []))
         .then((items) => {
           if (Array.isArray(items)) {
             const pending = items.filter((i) => !i.isDone && i.type === 'ASSIGNMENT').length;
@@ -59,7 +71,7 @@ export default function Dashboard({ user, setActiveTab, onOpenAiBot }) {
       // 3. Today's classes
       if (user?.className) {
         fetch(`/api/timetable/${user.className}`, { credentials: 'include' })
-          .then((res) => (res.ok ? res.json() : []))
+          .then(async (res) => (res.ok ? (await safeJson(res)) || [] : []))
           .then((entries) => {
             if (Array.isArray(entries)) {
               const forToday = entries.filter((e) => e.dayOfWeek === todayDayName);
@@ -72,7 +84,7 @@ export default function Dashboard({ user, setActiveTab, onOpenAiBot }) {
       // Teacher stats
       // 1. Total students & assignments
       fetch('/api/attendance/summary', { credentials: 'include' })
-        .then((res) => (res.ok ? res.json() : []))
+        .then(async (res) => (res.ok ? (await safeJson(res)) || [] : []))
         .then((students) => {
           if (Array.isArray(students)) {
             setTotalStudentsCount(students.length);
@@ -81,7 +93,7 @@ export default function Dashboard({ user, setActiveTab, onOpenAiBot }) {
         .catch(console.error);
 
       fetch('/api/assignments?className=10-A', { credentials: 'include' })
-        .then((res) => (res.ok ? res.json() : []))
+        .then(async (res) => (res.ok ? (await safeJson(res)) || [] : []))
         .then((items) => {
           if (Array.isArray(items)) {
             setAssignmentsCount(items.length);
@@ -91,7 +103,7 @@ export default function Dashboard({ user, setActiveTab, onOpenAiBot }) {
 
       // 2. Today's classes for selected teacher class
       fetch(`/api/timetable/${teacherClass}`, { credentials: 'include' })
-        .then((res) => (res.ok ? res.json() : []))
+        .then(async (res) => (res.ok ? (await safeJson(res)) || [] : []))
         .then((entries) => {
           if (Array.isArray(entries)) {
             const forToday = entries.filter((e) => e.dayOfWeek === todayDayName);
@@ -151,7 +163,7 @@ export default function Dashboard({ user, setActiveTab, onOpenAiBot }) {
           <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.35rem' }}>
             {isTeacher
               ? `Authorized Faculty Staff • Assigned Department: Academic Curriculum & Timetabling`
-              : `Institutional Roll: ${user?.rollNo || '10A01'} • Apex International Academy`}
+              : `Institutional Roll: ${user?.rollNo || '10A01'} • Arka Jain University (Gamharia)`}
           </p>
         </div>
 
@@ -193,6 +205,26 @@ export default function Dashboard({ user, setActiveTab, onOpenAiBot }) {
                 <Calendar size={16} color="var(--primary-light)" />
                 <span>View Full Week</span>
               </button>
+
+              <button
+                onClick={() => setActiveTab('cctv-attendance')}
+                style={{
+                  padding: '0.65rem 1.25rem',
+                  borderRadius: '10px',
+                  fontSize: '0.85rem',
+                  fontWeight: '600',
+                  background: 'rgba(6, 182, 212, 0.15)',
+                  border: '1px solid rgba(6, 182, 212, 0.35)',
+                  color: '#06b6d4',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                }}
+              >
+                <Camera size={16} />
+                <span>CCTV Gate Monitor</span>
+              </button>
             </>
           ) : (
             <>
@@ -209,6 +241,26 @@ export default function Dashboard({ user, setActiveTab, onOpenAiBot }) {
               >
                 <ShieldCheck size={16} />
                 <span>Take Daily Roll Call</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('cctv-attendance')}
+                style={{
+                  padding: '0.65rem 1.25rem',
+                  borderRadius: '10px',
+                  fontSize: '0.85rem',
+                  fontWeight: '600',
+                  background: 'rgba(6, 182, 212, 0.15)',
+                  border: '1px solid rgba(6, 182, 212, 0.35)',
+                  color: '#06b6d4',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                }}
+              >
+                <Camera size={16} />
+                <span>CCTV Gate Monitor</span>
               </button>
 
               <button
@@ -301,6 +353,27 @@ export default function Dashboard({ user, setActiveTab, onOpenAiBot }) {
               Unit tests and midterm assessments
             </div>
           </div>
+
+          {/* CCTV Gate Passages */}
+          <div
+            className="glass-panel"
+            style={{ padding: '1.4rem', cursor: 'pointer' }}
+            onClick={() => setActiveTab('cctv-attendance')}
+            title="Click to view CCTV Gate Monitor"
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '700' }}>
+                CCTV Gate Crossings
+              </span>
+              <Camera size={20} color="#06b6d4" />
+            </div>
+            <div style={{ fontSize: '2rem', fontWeight: '800', color: '#06b6d4', marginTop: '0.4rem' }}>
+              {attendanceStats?.todayPassCount || 0} Passes
+            </div>
+            <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+              {attendanceStats?.todayVerifiedBy === 'CCTV_FACIAL_RECOGNITION' ? '✓ Auto-Attended via CCTV' : 'Turnstile facial recognition active'}
+            </div>
+          </div>
         </div>
       ) : (
         /* Teacher KPI Cards */
@@ -325,6 +398,24 @@ export default function Dashboard({ user, setActiveTab, onOpenAiBot }) {
               {assignmentsCount} Broadcasted
             </div>
             <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>Current semester coursework</div>
+          </div>
+
+          <div
+            className="glass-panel"
+            style={{ padding: '1.4rem', cursor: 'pointer' }}
+            onClick={() => setActiveTab('cctv-attendance')}
+            title="Click to view live CCTV monitoring"
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '700' }}>CCTV Gate Crossings</span>
+              <Camera size={20} color="#06b6d4" />
+            </div>
+            <div style={{ fontSize: '2rem', fontWeight: '800', color: '#06b6d4', marginTop: '0.4rem' }}>
+              {cctvStats?.totalPassages || 0} Today
+            </div>
+            <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+              {cctvStats?.cctvAttendanceCount || 0} Auto-Attended via CCTV
+            </div>
           </div>
 
           <div className="glass-panel" style={{ padding: '1.4rem' }}>
@@ -480,7 +571,7 @@ export default function Dashboard({ user, setActiveTab, onOpenAiBot }) {
                 75% Minimum Attendance Requirement
               </div>
               <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.2rem', lineHeight: '1.4' }}>
-                Apex International Academy mandates 75% attendance for examination eligibility. Daily GPS check-in is mandatory.
+                Arka Jain University mandates 75% attendance for examination eligibility. Daily GPS check-in is mandatory.
               </p>
             </div>
 

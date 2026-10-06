@@ -6,11 +6,13 @@ import Dashboard from './components/Dashboard';
 import Timetable from './components/Timetable';
 import AiTimetableGenerator from './components/AiTimetableGenerator';
 import GeoAttendance from './components/GeoAttendance';
+import CctvFaceAttendance from './components/CctvFaceAttendance';
 import AiChatbot from './components/AiChatbot';
 import Assignments from './components/Assignments';
 import SettingsView from './components/SettingsView';
 import FloatingAiAssistant from './components/FloatingAiAssistant';
 import { RefreshCw } from 'lucide-react';
+import { safeJson } from './utils/api';
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -35,7 +37,7 @@ export default function App() {
   // Restore authenticated session on initial mount
   useEffect(() => {
     fetch('/api/auth/me', { credentials: 'include' })
-      .then((res) => (res.ok ? res.json() : null))
+      .then((res) => (res.ok ? safeJson(res) : null))
       .then((data) => {
         if (data?.user) {
           setUser(data.user);
@@ -104,7 +106,8 @@ export default function App() {
               />
             )}
             {activeTab === 'timetable' && <Timetable user={user} />}
-            {(activeTab === 'attendance' || activeTab === 'geo-attendance') && <GeoAttendance user={user} />}
+            {(activeTab === 'attendance' || activeTab === 'geo-attendance') && <GeoAttendance user={user} onOpenCctv={() => setActiveTab('cctv-attendance')} />}
+            {activeTab === 'cctv-attendance' && <CctvFaceAttendance user={user} />}
             {activeTab === 'assignments' && <Assignments user={user} />}
             {activeTab === 'ai-generator' && <AiTimetableGenerator />}
             {(activeTab === 'ai-assistant' || activeTab === 'ai-chatbot') && <AiChatbot user={user} />}

@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { 
   MapPin, ShieldCheck, AlertCircle, RefreshCw, CheckCircle2, 
-  Clock, User, Compass, Calendar, AlertTriangle, ArrowUpDown, Sparkles
+  Clock, User, Compass, Calendar, AlertTriangle, ArrowUpDown, Sparkles, Camera
 } from 'lucide-react';
+import { safeJson, parseApiResponse } from '../utils/api';
 
-export default function GeoAttendance({ user }) {
+export default function GeoAttendance({ user, onOpenCctv }) {
   const isTeacher = user?.role === 'TEACHER' || user?.role === 'ADMIN';
 
   // Active Tab for Teachers: 'daily' or 'summary'
@@ -37,8 +38,8 @@ export default function GeoAttendance({ user }) {
     try {
       const res = await fetch('/api/settings', { credentials: 'include' });
       if (res.ok) {
-        const data = await res.json();
-        setSchoolSettings(data);
+        const data = await safeJson(res);
+        if (data) setSchoolSettings(data);
       }
     } catch (e) {
       console.error('Failed to load settings', e);
@@ -50,9 +51,11 @@ export default function GeoAttendance({ user }) {
     try {
       const res = await fetch('/api/attendance/my', { credentials: 'include' });
       if (res.ok) {
-        const data = await res.json();
-        setMyStats(data.stats);
-        setMyRecords(data.records);
+        const data = await safeJson(res);
+        if (data) {
+          setMyStats(data.stats);
+          setMyRecords(data.records);
+        }
       }
     } catch (e) {
       console.error('Failed to load attendance records', e);
@@ -67,8 +70,8 @@ export default function GeoAttendance({ user }) {
         credentials: 'include',
       });
       if (res.ok) {
-        const data = await res.json();
-        setClassList(data.attendance || []);
+        const data = await safeJson(res);
+        setClassList(data?.attendance || []);
       }
     } catch (e) {
       console.error('Failed to load class attendance', e);
@@ -82,8 +85,8 @@ export default function GeoAttendance({ user }) {
     try {
       const res = await fetch('/api/attendance/summary', { credentials: 'include' });
       if (res.ok) {
-        const data = await res.json();
-        setSummaryList(data);
+        const data = await safeJson(res);
+        if (Array.isArray(data)) setSummaryList(data);
       }
     } catch (e) {
       console.error('Failed to load summary', e);
@@ -130,20 +133,20 @@ export default function GeoAttendance({ user }) {
             body: JSON.stringify({ latitude, longitude }),
           });
 
-          const data = await res.json();
+          const data = await safeJson(res);
 
           if (!res.ok) {
             setMarkStatus({
               type: 'error',
-              message: data.error || 'Attendance verification failed',
-              distance: data.distanceMeters,
-              allowed: data.allowedRadius,
+              message: data?.error || (res.status >= 500 ? 'Backend server unreachable' : 'Attendance verification failed'),
+              distance: data?.distanceMeters,
+              allowed: data?.allowedRadius,
             });
           } else {
             setMarkStatus({
               type: 'success',
-              message: `Attendance verified! You are ${data.distanceMeters}m from campus center (within permitted boundary).`,
-              distance: data.distanceMeters,
+              message: `Attendance verified! You are ${data?.distanceMeters}m from campus center (within permitted boundary).`,
+              distance: data?.distanceMeters,
             });
             fetchMyAttendance();
           }
@@ -195,11 +198,9 @@ export default function GeoAttendance({ user }) {
               attendanceRadiusMeters: 250,
             }),
           });
-          if (res.ok) {
-            const updated = await res.json();
-            setSchoolSettings(updated);
-            alert(`Campus location calibrated to your current GPS coordinates (${latitude.toFixed(4)}, ${longitude.toFixed(4)}) with 250m radius! You can now mark attendance successfully.`);
-          }
+          const updated = await parseApiResponse(res, 'Calibration failed');
+          setSchoolSettings(updated);
+          alert(`Campus location calibrated to your current GPS coordinates (${latitude.toFixed(4)}, ${longitude.toFixed(4)}) with 250m radius! You can now mark attendance successfully.`);
         } catch (err) {
           alert(`Sync failed: ${err.message}`);
         } finally {
@@ -232,8 +233,8 @@ export default function GeoAttendance({ user }) {
         // Refresh class attendance
         fetchClassAttendance();
       } else {
-        const err = await res.json();
-        alert(`Override failed: ${err.error}`);
+        const err = await safeJson(res);
+        alert(`Override failed: ${err?.error || `HTTP ${res.status}`}`);
       }
     } catch (e) {
       alert(`Error updating attendance: ${e.message}`);
@@ -280,7 +281,7 @@ export default function GeoAttendance({ user }) {
             </h2>
           </div>
           <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-            Campus Coordinates: <strong>{schoolSettings?.latitude?.toFixed(4) || '28.6139'}° N, {schoolSettings?.longitude?.toFixed(4) || '77.2090'}° E</strong> • Permitted Radius: <strong>{schoolSettings?.attendanceRadiusMeters || 250}m</strong>
+            Campus Coordinates: <strong>{schoolSettings?.latitude?.toFixed(4) || '22.8433'}° N, {schoolSettings?.longitude?.toFixed(4) || '86.1024'}° E</strong> • Permitted Radius: <strong>{schoolSettings?.attendanceRadiusMeters || 250}m</strong> • <span>{schoolSettings?.schoolName || 'Arka Jain University, Gamharia'}</span>
           </p>
         </div>
 
@@ -377,6 +378,49 @@ export default function GeoAttendance({ user }) {
                 </div>
               )}
             </div>
+
+            {/* CCTV Facial Recognition Auto-Attendance Info */}
+            {myStats?.todayVerifiedBy === 'CCTV_FACIAL_RECOGNITION' && (
+              <div
+                style={{
+                  padding: '0.85rem 1rem',
+                  borderRadius: '12px',
+                  marginBottom: '1.25rem',
+                  background: 'linear-gradient(135deg, rgba(6, 182, 212, 0.15), rgba(16, 185, 129, 0.15))',
+                  border: '1px solid rgba(6, 182, 212, 0.3)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                }}
+              >
+                <Camera size={22} color="#06b6d4" />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '0.82rem', fontWeight: '800', color: 'var(--text-primary)' }}>
+                    Verified via CCTV Facial Recognition
+                  </div>
+                  <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', marginTop: '0.15rem' }}>
+                    Gate Turnstile Passes Today: <strong>{myStats?.todayPassCount || 1}</strong> • First Seen: <strong>{myStats?.todayFirstSeen || '08:52 AM'}</strong>
+                  </div>
+                </div>
+                {onOpenCctv && (
+                  <button
+                    onClick={onOpenCctv}
+                    style={{
+                      padding: '0.35rem 0.65rem',
+                      borderRadius: '8px',
+                      background: 'rgba(6, 182, 212, 0.2)',
+                      border: '1px solid rgba(6, 182, 212, 0.4)',
+                      color: '#06b6d4',
+                      fontSize: '0.72rem',
+                      fontWeight: '700',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    View CCTV Hub
+                  </button>
+                )}
+              </div>
+            )}
 
             {/* Status notification banner */}
             {markStatus && (
@@ -547,6 +591,52 @@ export default function GeoAttendance({ user }) {
 
           {teacherTab === 'daily' ? (
             <div className="glass-panel" style={{ padding: '1.75rem' }}>
+              {/* CCTV Live Gateway Banner */}
+              <div
+                style={{
+                  padding: '0.85rem 1.25rem',
+                  borderRadius: '12px',
+                  background: 'linear-gradient(135deg, rgba(6, 182, 212, 0.15), rgba(79, 70, 229, 0.15))',
+                  border: '1px solid rgba(6, 182, 212, 0.3)',
+                  marginBottom: '1.25rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: '0.75rem',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                  <Camera size={20} color="#06b6d4" />
+                  <div>
+                    <div style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--text-primary)' }}>
+                      CCTV Facial Recognition & Passage Tracking Active
+                    </div>
+                    <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
+                      Students crossing campus turnstiles have their daily attendance auto-marked PRESENT on their first pass, and crossing frequency logged continuously.
+                    </div>
+                  </div>
+                </div>
+                {onOpenCctv && (
+                  <button
+                    onClick={onOpenCctv}
+                    style={{
+                      padding: '0.45rem 0.95rem',
+                      borderRadius: '8px',
+                      background: 'linear-gradient(135deg, #06b6d4, #3b82f6)',
+                      border: 'none',
+                      color: 'white',
+                      fontSize: '0.78rem',
+                      fontWeight: '700',
+                      cursor: 'pointer',
+                      boxShadow: '0 4px 12px rgba(6, 182, 212, 0.3)',
+                    }}
+                  >
+                    Open Live CCTV Monitor →
+                  </button>
+                )}
+              </div>
+
               {/* Controls: Class + Date */}
               <div
                 style={{
@@ -626,20 +716,21 @@ export default function GeoAttendance({ user }) {
 
               {/* Roster Table with Manual Override Actions */}
               <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '700px' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '780px' }}>
                   <thead>
                     <tr style={{ background: 'var(--input-bg)', borderBottom: '1px solid var(--border-subtle)' }}>
                       <th style={{ padding: '0.85rem 1rem', textAlign: 'left', fontSize: '0.78rem', color: 'var(--text-muted)' }}>Roll No</th>
                       <th style={{ padding: '0.85rem 1rem', textAlign: 'left', fontSize: '0.78rem', color: 'var(--text-muted)' }}>Student Name</th>
-                      <th style={{ padding: '0.85rem 1rem', textAlign: 'left', fontSize: '0.78rem', color: 'var(--text-muted)' }}>Current Status</th>
-                      <th style={{ padding: '0.85rem 1rem', textAlign: 'left', fontSize: '0.78rem', color: 'var(--text-muted)' }}>GPS / Method</th>
+                      <th style={{ padding: '0.85rem 1rem', textAlign: 'left', fontSize: '0.78rem', color: 'var(--text-muted)' }}>Status</th>
+                      <th style={{ padding: '0.85rem 1rem', textAlign: 'left', fontSize: '0.78rem', color: 'var(--text-muted)' }}>Method / Verification</th>
+                      <th style={{ padding: '0.85rem 1rem', textAlign: 'left', fontSize: '0.78rem', color: 'var(--text-muted)' }}>Passes Today</th>
                       <th style={{ padding: '0.85rem 1rem', textAlign: 'right', fontSize: '0.78rem', color: 'var(--text-muted)' }}>Teacher Override</th>
                     </tr>
                   </thead>
                   <tbody>
                     {classList.length === 0 ? (
                       <tr>
-                        <td colSpan={5} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                        <td colSpan={6} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
                           No registered students found for Class {selectedClass}.
                         </td>
                       </tr>
@@ -655,7 +746,12 @@ export default function GeoAttendance({ user }) {
                               {st.rollNo || '—'}
                             </td>
                             <td style={{ padding: '0.85rem 1rem', fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-primary)' }}>
-                              {st.name}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                {st.faceImageUrl ? (
+                                  <img src={st.faceImageUrl} alt="" style={{ width: '24px', height: '24px', borderRadius: '50%' }} />
+                                ) : null}
+                                <span>{st.name}</span>
+                              </div>
                             </td>
                             <td style={{ padding: '0.85rem 1rem' }}>
                               <span
@@ -684,11 +780,70 @@ export default function GeoAttendance({ user }) {
                               </span>
                             </td>
                             <td style={{ padding: '0.85rem 1rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                              {st.verifiedBy ? (
-                                <span>{st.verifiedBy} {st.distanceMeters ? `(~${Math.round(st.distanceMeters)}m)` : ''}</span>
+                              {st.verifiedBy === 'CCTV_FACIAL_RECOGNITION' ? (
+                                <span
+                                  style={{
+                                    padding: '0.2rem 0.55rem',
+                                    borderRadius: '6px',
+                                    background: 'rgba(6, 182, 212, 0.15)',
+                                    color: '#06b6d4',
+                                    fontSize: '0.72rem',
+                                    fontWeight: '700',
+                                    border: '1px solid rgba(6, 182, 212, 0.3)',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.3rem',
+                                  }}
+                                >
+                                  <Camera size={12} /> CCTV Facial Rec
+                                </span>
+                              ) : st.verifiedBy === 'GEOLOCATION' ? (
+                                <span
+                                  style={{
+                                    padding: '0.2rem 0.55rem',
+                                    borderRadius: '6px',
+                                    background: 'rgba(59, 130, 246, 0.15)',
+                                    color: '#3b82f6',
+                                    fontSize: '0.72rem',
+                                    fontWeight: '700',
+                                    border: '1px solid rgba(59, 130, 246, 0.3)',
+                                  }}
+                                >
+                                  GPS Geofence {st.distanceMeters ? `(~${Math.round(st.distanceMeters)}m)` : ''}
+                                </span>
+                              ) : st.verifiedBy === 'TEACHER_OVERRIDE' ? (
+                                <span
+                                  style={{
+                                    padding: '0.2rem 0.55rem',
+                                    borderRadius: '6px',
+                                    background: 'rgba(245, 158, 11, 0.15)',
+                                    color: '#f59e0b',
+                                    fontSize: '0.72rem',
+                                    fontWeight: '700',
+                                    border: '1px solid rgba(245, 158, 11, 0.3)',
+                                  }}
+                                >
+                                  Faculty Override
+                                </span>
                               ) : (
                                 <span>—</span>
                               )}
+                            </td>
+                            <td style={{ padding: '0.85rem 1rem' }}>
+                              <span
+                                style={{
+                                  display: 'inline-block',
+                                  padding: '0.15rem 0.5rem',
+                                  borderRadius: '6px',
+                                  fontSize: '0.72rem',
+                                  fontWeight: '700',
+                                  background: (st.passCount || 0) > 0 ? 'rgba(16, 185, 129, 0.15)' : 'rgba(148, 163, 184, 0.15)',
+                                  color: (st.passCount || 0) > 0 ? '#10b981' : 'var(--text-muted)',
+                                  border: (st.passCount || 0) > 0 ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid var(--border-subtle)',
+                                }}
+                              >
+                                {st.passCount || 0} {st.passCount === 1 ? 'pass' : 'passes'} {st.lastSeenTime ? `(${st.lastSeenTime})` : ''}
+                              </span>
                             </td>
                             <td style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>
                               <div style={{ display: 'inline-flex', gap: '0.35rem' }}>

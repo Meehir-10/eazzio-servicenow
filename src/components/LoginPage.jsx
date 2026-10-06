@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { User, Lock, ArrowRight, ShieldCheck, Sparkles, GraduationCap, AlertCircle, RefreshCw } from 'lucide-react';
+import { parseApiResponse } from '../utils/api';
 
 export default function LoginPage({ onLogin }) {
   const [username, setUsername] = useState('rohit_kumar');
@@ -20,11 +21,7 @@ export default function LoginPage({ onLogin }) {
         body: JSON.stringify({ username, password }),
       });
 
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Authentication failed');
-      }
-
+      const data = await parseApiResponse(res, 'Authentication failed');
       onLogin(data.user);
     } catch (err) {
       setError(err.message);
@@ -47,11 +44,7 @@ export default function LoginPage({ onLogin }) {
         body: JSON.stringify({ username: u, password: p }),
       });
 
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Authentication failed');
-      }
-
+      const data = await parseApiResponse(res, 'Authentication failed');
       onLogin(data.user);
     } catch (err) {
       setError(err.message);
@@ -112,7 +105,7 @@ export default function LoginPage({ onLogin }) {
             Autonomous College ERP & Timetable Optimizer
           </p>
           <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
-            Apex International Academy Portal
+            Arka Jain University Portal (Gamharia)
           </div>
         </div>
 

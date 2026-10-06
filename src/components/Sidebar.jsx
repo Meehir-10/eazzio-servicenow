@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Menu, X, LayoutDashboard, Calendar, MapPin, BookOpenCheck, 
-  Bot, Settings, LogOut, Sun, Moon, GraduationCap, Shield, User as UserIcon, Clock, Wand2
+  Bot, Settings, LogOut, Sun, Moon, GraduationCap, Shield, User as UserIcon, Clock, Wand2, Camera
 } from 'lucide-react';
 
 export default function Sidebar({ 
@@ -35,6 +35,7 @@ export default function Sidebar({
     { id: 'dashboard', label: 'Overview Dashboard', icon: LayoutDashboard },
     { id: 'timetable', label: 'Academic Timetable', icon: Calendar },
     { id: 'attendance', label: 'Geo-Attendance', icon: MapPin },
+    { id: 'cctv-attendance', label: 'CCTV Face & Passage', icon: Camera, badge: 'AI CCTV' },
     { id: 'assignments', label: 'Assignments & Tests', icon: BookOpenCheck },
     ...(user?.role === 'TEACHER' || user?.role === 'ADMIN'
       ? [{ id: 'ai-generator', label: 'AI Schedule Optimizer', icon: Wand2 }]
@@ -109,7 +110,7 @@ export default function Sidebar({
                   fontWeight: '700'
                 }}>AI</span>
               </div>
-              <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>Apex International Academy</div>
+              <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>Arka Jain University</div>
             </div>
           </div>
         </div>
@@ -330,6 +331,22 @@ export default function Sidebar({
                   >
                     <Icon size={18} color={isActive ? 'var(--primary-light)' : 'var(--text-muted)'} />
                     <span>{item.label}</span>
+                    {item.badge && (
+                      <span
+                        style={{
+                          marginLeft: 'auto',
+                          fontSize: '0.62rem',
+                          fontWeight: '800',
+                          padding: '0.12rem 0.45rem',
+                          borderRadius: '6px',
+                          background: 'linear-gradient(135deg, #06b6d4, #3b82f6)',
+                          color: '#ffffff',
+                          letterSpacing: '0.3px',
+                        }}
+                      >
+                        {item.badge}
+                      </span>
+                    )}
                   </button>
                 );
               })}

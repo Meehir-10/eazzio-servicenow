@@ -16,20 +16,25 @@ model User {
   role      String   // "TEACHER", "STUDENT", "ADMIN"
   className String?  // e.g. "10-A", "10-B"
   rollNo    String?
+  faceDescriptor String?  // JSON serialized 128-d face feature embedding
+  faceImageUrl   String?  // Enrolled profile face photo data/URL
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   attendanceRecords        AttendanceRecord[]
   assignmentsCreated       Assignment[]
   studentAssignmentStatuses StudentAssignmentStatus[]
+  cctvPassages             CctvPassage[]
 }
 
 model SchoolSetting {
   id                     String   @id @default("default")
-  schoolName             String   @default("Apex International Academy")
-  latitude               Float    @default(28.6139)
-  longitude              Float    @default(77.2090)
-  attendanceRadiusMeters Float    @default(200.0)
+  schoolName             String   @default("Arka Jain University, Gamharia")
+  latitude               Float    @default(22.8433)
+  longitude              Float    @default(86.1024)
+  attendanceRadiusMeters Float    @default(250.0)
+  aiApiKey               String?
+  aiProvider             String   @default("AUTO") // "GEMINI", "ANTHROPIC", "OPENAI", "LOCAL"
   updatedAt              DateTime @updatedAt
 }
 
@@ -57,11 +62,40 @@ model AttendanceRecord {
   latitude       Float?
   longitude      Float?
   distanceMeters Float?
+  passCount      Int      @default(1) // Number of times detected/passed CCTV
+  firstSeenTime  String?  // e.g. "09:05:14"
+  lastSeenTime   String?  // e.g. "14:22:50"
+  cctvCamera     String?  // e.g. "Gate 1 Main Entrance CCTV"
   verified       Boolean  @default(false)
-  verifiedBy     String   @default("GEOLOCATION") // "GEOLOCATION", "TEACHER_OVERRIDE"
+  verifiedBy     String   @default("GEOLOCATION") // "GEOLOCATION", "TEACHER_OVERRIDE", "CCTV_FACIAL_RECOGNITION"
   createdAt      DateTime @default(now())
 
   @@unique([studentId, date])
+}
+
+model CctvPassage {
+  id          String   @id @default(cuid())
+  studentId   String?
+  student     User?    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  date        String   // "YYYY-MM-DD"
+  timestamp   DateTime @default(now())
+  timeStr     String   // "09:14:22"
+  cameraName  String   @default("Gate 1 Main Entrance CCTV")
+  direction   String   @default("IN") // "IN", "OUT", "PASS"
+  confidence  Float?
+  snapshotUrl String?
+  passNumber  Int      @default(1)
+  status      String   @default("VERIFIED") // "VERIFIED", "UNKNOWN"
+  createdAt   DateTime @default(now())
+}
+
+model CctvCamera {
+  id        String   @id @default(cuid())
+  name      String
+  location  String
+  type      String   @default("ENTRANCE") // "ENTRANCE", "HALLWAY", "CLASSROOM"
+  status    String   @default("ONLINE")
+  createdAt DateTime @default(now())
 }
 
 model Assignment {

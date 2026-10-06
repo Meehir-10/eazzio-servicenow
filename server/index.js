@@ -6,6 +6,7 @@ import bcrypt from 'bcryptjs';
 import dotenv from 'dotenv';
 import Anthropic from '@anthropic-ai/sdk';
 import prisma from './db.js';
+import { processChatConversation, testAiKey } from './aiEngine.js';
 
 dotenv.config();
 
@@ -162,9 +163,9 @@ app.get('/api/settings', async (req, res) => {
     settings = await prisma.schoolSetting.create({
       data: {
         id: 'default',
-        schoolName: 'Apex International Academy',
-        latitude: 28.6139,
-        longitude: 77.209,
+        schoolName: 'Arka Jain University, Gamharia',
+        latitude: 22.8433,
+        longitude: 86.1024,
         attendanceRadiusMeters: 250.0,
       },
     });
@@ -173,23 +174,27 @@ app.get('/api/settings', async (req, res) => {
 });
 
 app.put('/api/settings', authenticate, requireTeacher, async (req, res) => {
-  const { schoolName, latitude, longitude, attendanceRadiusMeters } = req.body;
+  const { schoolName, latitude, longitude, attendanceRadiusMeters, aiApiKey, aiProvider } = req.body;
 
   const data = {};
   if (schoolName !== undefined) data.schoolName = String(schoolName);
   if (latitude !== undefined) data.latitude = parseFloat(latitude);
   if (longitude !== undefined) data.longitude = parseFloat(longitude);
   if (attendanceRadiusMeters !== undefined) data.attendanceRadiusMeters = parseFloat(attendanceRadiusMeters);
+  if (aiApiKey !== undefined) data.aiApiKey = String(aiApiKey);
+  if (aiProvider !== undefined) data.aiProvider = String(aiProvider);
 
   const updated = await prisma.schoolSetting.upsert({
     where: { id: 'default' },
     update: data,
     create: {
       id: 'default',
-      schoolName: data.schoolName || 'Apex International Academy',
-      latitude: data.latitude || 28.6139,
-      longitude: data.longitude || 77.209,
+      schoolName: data.schoolName || 'Arka Jain University, Gamharia',
+      latitude: data.latitude || 22.8433,
+      longitude: data.longitude || 86.1024,
       attendanceRadiusMeters: data.attendanceRadiusMeters || 250.0,
+      aiApiKey: data.aiApiKey || '',
+      aiProvider: data.aiProvider || 'gemini',
     },
   });
 
@@ -286,8 +291,8 @@ app.post('/api/attendance/mark', authenticate, async (req, res) => {
 
   // School settings
   const settings = await prisma.schoolSetting.findUnique({ where: { id: 'default' } }) || {
-    latitude: 28.6139,
-    longitude: 77.209,
+    latitude: 22.8433,
+    longitude: 86.1024,
     attendanceRadiusMeters: 250.0,
   };
 
@@ -343,11 +348,24 @@ app.get('/api/attendance/my', authenticate, async (req, res) => {
   const percentage = total > 0 ? Math.round(((present + late * 0.5) / total) * 100) : 100;
 
   const todayStr = getTodayDateStr();
-  const markedToday = records.some((r) => r.date === todayStr);
+  const todayRec = records.find((r) => r.date === todayStr);
+  const markedToday = !!todayRec;
 
   res.json({
     records,
-    stats: { total, present, late, absent, percentage, markedToday },
+    stats: {
+      total,
+      present,
+      late,
+      absent,
+      percentage,
+      markedToday,
+      todayPassCount: todayRec?.passCount || 0,
+      todayFirstSeen: todayRec?.firstSeenTime || null,
+      todayLastSeen: todayRec?.lastSeenTime || null,
+      todayVerifiedBy: todayRec?.verifiedBy || null,
+      todayCctvCamera: todayRec?.cctvCamera || null,
+    },
   });
 });
 
@@ -358,7 +376,7 @@ app.get('/api/attendance/class', authenticate, requireTeacher, async (req, res) 
 
   const students = await prisma.user.findMany({
     where: { role: 'STUDENT', className: targetClass },
-    select: { id: true, name: true, rollNo: true, username: true },
+    select: { id: true, name: true, rollNo: true, username: true, faceImageUrl: true },
     orderBy: { rollNo: 'asc' },
   });
 
@@ -379,9 +397,14 @@ app.get('/api/attendance/class', authenticate, requireTeacher, async (req, res) 
       name: st.name,
       rollNo: st.rollNo,
       username: st.username,
+      faceImageUrl: st.faceImageUrl,
       status: rec ? rec.status : 'NOT_RECORDED',
       distanceMeters: rec ? rec.distanceMeters : null,
       verifiedBy: rec ? rec.verifiedBy : null,
+      passCount: rec ? (rec.passCount || 1) : 0,
+      firstSeenTime: rec ? rec.firstSeenTime : null,
+      lastSeenTime: rec ? rec.lastSeenTime : null,
+      cctvCamera: rec ? rec.cctvCamera : null,
       recordId: rec ? rec.id : null,
     };
   });
@@ -569,145 +592,300 @@ app.post('/api/assignments/:id/toggle-done', authenticate, async (req, res) => {
 });
 
 // ==========================================
+// 6.5. CCTV FACIAL RECOGNITION & PASSAGE TRACKING
+// ==========================================
+
+// 1. Get Enrolled Students for CCTV Recognition
+app.get('/api/cctv/students', authenticate, async (req, res) => {
+  const students = await prisma.user.findMany({
+    where: { role: 'STUDENT' },
+    select: {
+      id: true,
+      name: true,
+      username: true,
+      className: true,
+      rollNo: true,
+      faceDescriptor: true,
+      faceImageUrl: true,
+    },
+    orderBy: [{ className: 'asc' }, { rollNo: 'asc' }],
+  });
+  res.json(students);
+});
+
+// 2. Register / Update Face for a Student
+app.post('/api/cctv/register-face', authenticate, async (req, res) => {
+  const { studentId, faceDescriptor, faceImageUrl } = req.body;
+  const targetId = studentId || req.user.id;
+
+  if (req.user.role === 'STUDENT' && req.user.id !== targetId) {
+    return res.status(403).json({ error: 'Students can only register their own facial profile' });
+  }
+
+  const updated = await prisma.user.update({
+    where: { id: targetId },
+    data: {
+      faceDescriptor: typeof faceDescriptor === 'string' ? faceDescriptor : JSON.stringify(faceDescriptor),
+      faceImageUrl: faceImageUrl || null,
+    },
+    select: { id: true, name: true, rollNo: true, faceImageUrl: true, className: true },
+  });
+
+  res.json({ message: 'Facial biometric profile enrolled successfully', student: updated });
+});
+
+// 3. Record Passage & Auto-Mark Attendance via CCTV
+app.post('/api/cctv/record-passage', authenticate, async (req, res) => {
+  const {
+    studentId,
+    cameraName = 'Gate 1 - Main Turnstile CCTV',
+    direction = 'IN',
+    confidence = 0.95,
+    snapshotUrl = null,
+  } = req.body;
+
+  const todayStr = getTodayDateStr();
+  const now = new Date();
+  const timeStr = now.toTimeString().split(' ')[0]; // "HH:MM:SS"
+
+  let student = null;
+  let passNumber = 1;
+
+  if (studentId) {
+    student = await prisma.user.findUnique({
+      where: { id: studentId },
+      select: { id: true, name: true, className: true, rollNo: true },
+    });
+  }
+
+  // Count existing passages for this student or visitor today
+  if (studentId) {
+    const existingCount = await prisma.cctvPassage.count({
+      where: { studentId, date: todayStr },
+    });
+    passNumber = existingCount + 1;
+  } else {
+    const unidentifiedCount = await prisma.cctvPassage.count({
+      where: { studentId: null, date: todayStr },
+    });
+    passNumber = unidentifiedCount + 1;
+  }
+
+  // Create Passage Log
+  const passage = await prisma.cctvPassage.create({
+    data: {
+      studentId: studentId || null,
+      date: todayStr,
+      timeStr,
+      cameraName,
+      direction: direction || 'IN',
+      confidence: confidence ? parseFloat(confidence) : null,
+      snapshotUrl: snapshotUrl || null,
+      passNumber,
+      status: studentId ? 'VERIFIED' : 'UNKNOWN',
+    },
+    include: {
+      student: { select: { id: true, name: true, rollNo: true, className: true } },
+    },
+  });
+
+  let attendanceRecord = null;
+  let isFirstPassToday = false;
+
+  // If identified student, automatically mark / update attendance!
+  if (studentId) {
+    const existingRecord = await prisma.attendanceRecord.findUnique({
+      where: {
+        studentId_date: {
+          studentId,
+          date: todayStr,
+        },
+      },
+    });
+
+    if (!existingRecord) {
+      // First pass of the day -> Mark PRESENT!
+      isFirstPassToday = true;
+      attendanceRecord = await prisma.attendanceRecord.create({
+        data: {
+          studentId,
+          date: todayStr,
+          status: 'PRESENT',
+          verified: true,
+          verifiedBy: 'CCTV_FACIAL_RECOGNITION',
+          passCount: 1,
+          firstSeenTime: timeStr,
+          lastSeenTime: timeStr,
+          cctvCamera: cameraName,
+        },
+      });
+    } else {
+      // Subsequent pass -> Increment pass count, update last seen time
+      const wasAbsentOrUnmarked = existingRecord.status !== 'PRESENT';
+      attendanceRecord = await prisma.attendanceRecord.update({
+        where: { id: existingRecord.id },
+        data: {
+          passCount: (existingRecord.passCount || 1) + 1,
+          lastSeenTime: timeStr,
+          cctvCamera: cameraName,
+          ...(wasAbsentOrUnmarked ? {
+            status: 'PRESENT',
+            verified: true,
+            verifiedBy: 'CCTV_FACIAL_RECOGNITION',
+          } : {}),
+        },
+      });
+    }
+  }
+
+  res.json({
+    success: true,
+    message: student
+      ? `Passage recorded for ${student.name} (Pass #${passNumber})${isFirstPassToday ? ' — Attendance marked PRESENT via CCTV' : ''}`
+      : `Unidentified visitor passage recorded (Pass #${passNumber})`,
+    passNumber,
+    isFirstPassToday,
+    passage,
+    attendanceRecord,
+  });
+});
+
+// 4. Get CCTV Passage Activity Logs
+app.get('/api/cctv/passages', authenticate, async (req, res) => {
+  const { date, limit = 50, className } = req.query;
+  const targetDate = date || getTodayDateStr();
+
+  const whereClause = { date: targetDate };
+  if (className) {
+    whereClause.student = { className };
+  }
+
+  const passages = await prisma.cctvPassage.findMany({
+    where: whereClause,
+    include: {
+      student: { select: { id: true, name: true, rollNo: true, className: true, faceImageUrl: true } },
+    },
+    orderBy: { timestamp: 'desc' },
+    take: parseInt(limit, 10),
+  });
+
+  res.json(passages);
+});
+
+// 5. Get Aggregate CCTV Passage & Attendance Stats
+app.get('/api/cctv/stats', authenticate, async (req, res) => {
+  const todayStr = getTodayDateStr();
+
+  const [totalPassages, allPassages, cctvAttendance] = await Promise.all([
+    prisma.cctvPassage.count({ where: { date: todayStr } }),
+    prisma.cctvPassage.findMany({
+      where: { date: todayStr },
+      select: { studentId: true, direction: true, timeStr: true, cameraName: true },
+    }),
+    prisma.attendanceRecord.findMany({
+      where: { date: todayStr, verifiedBy: 'CCTV_FACIAL_RECOGNITION' },
+    }),
+  ]);
+
+  const uniqueStudents = new Set(allPassages.filter(p => p.studentId).map(p => p.studentId)).size;
+  const entriesCount = allPassages.filter(p => p.direction === 'IN' || p.direction === 'ENTRY').length;
+  const exitsCount = allPassages.filter(p => p.direction === 'OUT' || p.direction === 'EXIT').length;
+  const currentInCampus = Math.max(0, entriesCount - exitsCount);
+
+  // Hourly distribution
+  const hourlyMap = {};
+  for (let h = 8; h <= 18; h++) {
+    const hh = String(h).padStart(2, '0') + ':00';
+    hourlyMap[hh] = 0;
+  }
+  for (const p of allPassages) {
+    if (p.timeStr) {
+      const hour = p.timeStr.split(':')[0] + ':00';
+      if (hourlyMap[hour] !== undefined) {
+        hourlyMap[hour]++;
+      }
+    }
+  }
+
+  res.json({
+    date: todayStr,
+    totalPassages,
+    uniqueStudents,
+    cctvAttendanceCount: cctvAttendance.length,
+    entriesCount,
+    exitsCount,
+    currentInCampus,
+    hourly: Object.entries(hourlyMap).map(([hour, count]) => ({ hour, count })),
+  });
+});
+
+// 6. Configured CCTV Cameras
+app.get('/api/cctv/cameras', authenticate, async (req, res) => {
+  let cameras = await prisma.cctvCamera.findMany();
+  if (cameras.length === 0) {
+    await prisma.cctvCamera.createMany({
+      data: [
+        { name: 'Gate 1 - Main Turnstile CCTV', location: 'Campus Main Entrance Gate', type: 'ENTRANCE' },
+        { name: 'Gate 2 - East Sports Wing CCTV', location: 'East Perimeter Pavilion', type: 'ENTRANCE' },
+        { name: 'Science & AI Block Corridor CCTV-03', location: 'Academic Wing Floor 1', type: 'HALLWAY' },
+        { name: 'Central Library Turnstile CCTV-04', location: 'Library & Resource Hub', type: 'ENTRANCE' },
+      ],
+    });
+    cameras = await prisma.cctvCamera.findMany();
+  }
+  res.json(cameras);
+});
+
+// ==========================================
 // 7. AI CHATBOT (Claude SDK + Context Grounding)
 // ==========================================
+app.post('/api/ai/test-key', authenticate, async (req, res) => {
+  const { apiKey, provider, save } = req.body;
+  if (!apiKey) {
+    return res.status(400).json({ error: 'API key is required' });
+  }
+
+  try {
+    const testResult = await testAiKey({ apiKey, provider: provider || 'gemini' });
+    if (save) {
+      await prisma.schoolSetting.upsert({
+        where: { id: 'default' },
+        update: { aiApiKey: apiKey, aiProvider: provider || 'gemini' },
+        create: {
+          id: 'default',
+          schoolName: 'Arka Jain University, Gamharia',
+          aiApiKey: apiKey,
+          aiProvider: provider || 'gemini',
+        },
+      });
+    }
+    return res.json({ success: true, message: 'Google Gemini API key verified successfully!', model: testResult.model });
+  } catch (err) {
+    return res.status(400).json({ success: false, error: err.message });
+  }
+});
+
 app.post('/api/chat', authenticate, async (req, res) => {
-  const { messages } = req.body;
+  const { messages, apiKey, provider } = req.body;
   const user = req.user;
 
   if (!Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ error: 'Messages array is required' });
   }
 
-  // 1. Gather live contextual data for this user
-  const todayStr = getTodayDateStr();
-  const dayOfWeek = getCurrentDayOfWeek();
-
-  // Schedule for today
-  let todaySchedule = [];
-  if (user.className) {
-    todaySchedule = await prisma.timetableEntry.findMany({
-      where: { className: user.className, dayOfWeek },
-      orderBy: { period: 'asc' },
+  try {
+    const result = await processChatConversation({
+      messages,
+      user,
+      prisma,
+      clientKey: apiKey,
+      clientProvider: provider,
     });
+    return res.json(result);
+  } catch (error) {
+    console.error('Chat error:', error);
+    return res.status(500).json({ error: 'Failed to process chat message', details: error.message });
   }
-
-  // Attendance
-  let attendanceInfo = 'Not applicable';
-  if (user.role === 'STUDENT') {
-    const records = await prisma.attendanceRecord.findMany({ where: { studentId: user.id } });
-    const total = records.length;
-    const present = records.filter((r) => r.status === 'PRESENT').length;
-    const percentage = total > 0 ? Math.round((present / total) * 100) : 100;
-    const todayRec = records.find((r) => r.date === todayStr);
-    attendanceInfo = `${percentage}% overall (${present}/${total} recorded sessions). Today: ${
-      todayRec ? todayRec.status : 'Pending / Not Marked Yet'
-    }`;
-  }
-
-  // Assignments / Tests
-  let pendingTasks = [];
-  if (user.className) {
-    pendingTasks = await prisma.assignment.findMany({
-      where: { className: user.className },
-      orderBy: { dueDate: 'asc' },
-      take: 5,
-    });
-  }
-
-  const school = (await prisma.schoolSetting.findUnique({ where: { id: 'default' } })) || {
-    schoolName: 'Apex International Academy',
-    attendanceRadiusMeters: 250,
-  };
-
-  // Build System Prompt
-  const systemPrompt = `You are SMARTCLASS AI, an intelligent, friendly, and context-aware academic assistant embedded into the Apex International Academy ERP portal.
-
-CURRENT USER CONTEXT:
-- Name: ${user.name}
-- Role: ${user.role}
-- Enrolled Class / Section: ${user.className || 'Faculty Staff'}
-- Current Date: ${todayStr} (${dayOfWeek})
-- Institution: ${school.schoolName}
-- Attendance Status: ${attendanceInfo}
-
-TODAY'S TIMETABLE (${dayOfWeek}):
-${
-  todaySchedule.length > 0
-    ? todaySchedule
-        .map((s) => `• Period ${s.period} (${s.startTime} - ${s.endTime}): ${s.subject} with ${s.teacherName} [${s.room}]`)
-        .join('\n')
-    : 'No scheduled classes today (or weekend).'
-}
-
-UPCOMING ASSIGNMENTS & TESTS:
-${
-  pendingTasks.length > 0
-    ? pendingTasks
-        .map((t) => `• [${t.type}] ${t.title} (${t.subject}) - Due: ${t.dueDate}`)
-        .join('\n')
-    : 'No active assignments or tests.'
-}
-
-INSTRUCTIONS:
-1. Always be polite, concise, encouraging, and academically helpful.
-2. Ground all answers in the live ERP data provided above whenever the user asks about schedules, attendance, classes, teachers, rooms, or assignments.
-3. If asked about subjects or academic topics (e.g. calculus, physics, programming, essay writing), provide clear, insightful educational explanations.
-4. Keep answers readable with markdown bullet points and bold highlights.`;
-
-  // Try Claude API if configured
-  if (anthropic) {
-    try {
-      const response = await anthropic.messages.create({
-        model: 'claude-3-5-sonnet-20241022',
-        max_tokens: 1000,
-        system: systemPrompt,
-        messages: messages.map((m) => ({
-          role: m.role === 'assistant' ? 'assistant' : 'user',
-          content: m.content,
-        })),
-      });
-
-      const replyText = response.content
-        .filter((c) => c.type === 'text')
-        .map((c) => c.text)
-        .join('\n');
-
-      return res.json({ reply: replyText, source: 'claude' });
-    } catch (apiErr) {
-      console.warn('Anthropic API request failed, falling back to local reasoning engine:', apiErr.message);
-    }
-  }
-
-  // Fallback Context-Grounded Intelligent Response Engine
-  const lastUserMsg = messages[messages.length - 1]?.content?.toLowerCase() || '';
-  let responseText = '';
-
-  if (lastUserMsg.includes('timetable') || lastUserMsg.includes('schedule') || lastUserMsg.includes('class') || lastUserMsg.includes('period') || lastUserMsg.includes('today')) {
-    if (todaySchedule.length > 0) {
-      responseText = `Here is your schedule for today (**${dayOfWeek}**, ${user.className}):\n\n` +
-        todaySchedule.map(s => `• **Period ${s.period}** (${s.startTime} – ${s.endTime}): **${s.subject}** with *${s.teacherName}* in *${s.room}*`).join('\n') +
-        `\n\nMake sure to arrive 5 minutes early for roll call!`;
-    } else {
-      responseText = `You have no scheduled lectures for today (**${dayOfWeek}**). Enjoy your study or revision time!`;
-    }
-  } else if (lastUserMsg.includes('attendance') || lastUserMsg.includes('present') || lastUserMsg.includes('absent')) {
-    responseText = `📊 **Your Attendance Overview:**\n\n• **Status:** ${attendanceInfo}\n• **Geofencing Radius:** Campus geofence is calibrated to **${school.attendanceRadiusMeters} meters**.\n\nYou can verify and submit today's attendance in the **Attendance** tab using your device's high-accuracy GPS.`;
-  } else if (lastUserMsg.includes('assignment') || lastUserMsg.includes('homework') || lastUserMsg.includes('test') || lastUserMsg.includes('exam') || lastUserMsg.includes('due')) {
-    if (pendingTasks.length > 0) {
-      responseText = `📚 **Upcoming Tasks & Deadlines for ${user.className}:**\n\n` +
-        pendingTasks.map(t => `• **[${t.type}]** ${t.title} (${t.subject}) — **Due: ${t.dueDate}**`).join('\n') +
-        `\n\nYou can track and mark these items as completed in the **Assignments & Tests** tab.`;
-    } else {
-      responseText = `Great news! You currently have no pending assignments or upcoming tests for **${user.className}**.`;
-    }
-  } else if (lastUserMsg.includes('who are you') || lastUserMsg.includes('help') || lastUserMsg.includes('what can you do')) {
-    responseText = `Hello **${user.name}**! I am **SMARTCLASS AI**, your intelligent academic companion.\n\nI can help you with:\n• **Live Timetables:** Ask *"What is my next class?"* or *"Today's schedule"*\n• **Attendance:** Ask *"What's my attendance percentage?"*\n• **Assignments & Tests:** Ask *"What assignments are due?"*\n• **Academic Explanations:** Ask me to explain concepts in Math, Physics, Computer Science, and more!`;
-  } else {
-    responseText = `Hello **${user.name}**! I am monitoring your **${user.className || 'academic'}** portal.\n\nYour current attendance is **${attendanceInfo}**. You have **${pendingTasks.length}** pending coursework items registered.\n\nFeel free to ask me anything about your daily schedule, upcoming tests, or course concepts!`;
-  }
-
-  res.json({ reply: responseText, source: 'smartclass-fallback-engine' });
 });
 
 // ==========================================

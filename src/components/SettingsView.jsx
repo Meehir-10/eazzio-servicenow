@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Settings as SettingsIcon, Save, Compass, CheckCircle2, AlertCircle, RefreshCw, Building } from 'lucide-react';
+import { Settings as SettingsIcon, Save, Compass, CheckCircle2, AlertCircle, RefreshCw, Building, Bot, Sparkles, Key } from 'lucide-react';
+import { safeJson, parseApiResponse } from '../utils/api';
 
 export default function SettingsView({ user }) {
   const isAuthorized = user?.role === 'TEACHER' || user?.role === 'ADMIN';
 
-  const [schoolName, setSchoolName] = useState('Apex International Academy');
-  const [latitude, setLatitude] = useState(28.6139);
-  const [longitude, setLongitude] = useState(77.2090);
+  const [schoolName, setSchoolName] = useState('Arka Jain University, Gamharia');
+  const [latitude, setLatitude] = useState(22.8433);
+  const [longitude, setLongitude] = useState(86.1024);
   const [attendanceRadiusMeters, setAttendanceRadiusMeters] = useState(250);
+  const [aiApiKey, setAiApiKey] = useState('');
+  const [aiProvider, setAiProvider] = useState('gemini');
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isReadingGps, setIsReadingGps] = useState(false);
@@ -22,11 +25,15 @@ export default function SettingsView({ user }) {
     try {
       const res = await fetch('/api/settings', { credentials: 'include' });
       if (res.ok) {
-        const data = await res.json();
-        setSchoolName(data.schoolName);
-        setLatitude(data.latitude);
-        setLongitude(data.longitude);
-        setAttendanceRadiusMeters(data.attendanceRadiusMeters);
+        const data = await safeJson(res);
+        if (data) {
+          setSchoolName(data.schoolName);
+          setLatitude(data.latitude);
+          setLongitude(data.longitude);
+          setAttendanceRadiusMeters(data.attendanceRadiusMeters);
+          if (data.aiApiKey !== undefined) setAiApiKey(data.aiApiKey || '');
+          if (data.aiProvider !== undefined) setAiProvider(data.aiProvider || 'gemini');
+        }
       }
     } catch (e) {
       console.error(e);
@@ -50,15 +57,13 @@ export default function SettingsView({ user }) {
           latitude: parseFloat(latitude),
           longitude: parseFloat(longitude),
           attendanceRadiusMeters: parseFloat(attendanceRadiusMeters),
+          aiApiKey,
+          aiProvider,
         }),
       });
 
-      if (!res.ok) {
-        throw new Error('Failed to save settings');
-      }
-
-      const updated = await res.json();
-      setMessage({ type: 'success', text: 'School configuration and attendance geofence updated successfully!' });
+      const updated = await parseApiResponse(res, 'Failed to save settings');
+      setMessage({ type: 'success', text: 'School configuration, geofence, and AI settings updated successfully!' });
     } catch (err) {
       setMessage({ type: 'error', text: err.message });
     } finally {
@@ -286,27 +291,148 @@ export default function SettingsView({ user }) {
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={handleSetToCurrentLocation}
-                    disabled={isReadingGps}
-                    style={{
-                      padding: '0.45rem 0.85rem',
-                      borderRadius: '8px',
-                      background: 'var(--input-bg)',
-                      border: '1px solid var(--border-subtle)',
-                      color: 'var(--primary-light)',
-                      fontSize: '0.78rem',
-                      fontWeight: '700',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.4rem',
-                    }}
-                  >
-                    <Compass size={15} className={isReadingGps ? 'animate-spin' : ''} />
-                    <span>Fill My Current GPS</span>
-                  </button>
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSchoolName('Arka Jain University, Gamharia');
+                        setLatitude(22.8433);
+                        setLongitude(86.1024);
+                        setAttendanceRadiusMeters(250);
+                      }}
+                      style={{
+                        padding: '0.45rem 0.85rem',
+                        borderRadius: '8px',
+                        background: 'rgba(59, 130, 246, 0.12)',
+                        border: '1px solid rgba(59, 130, 246, 0.3)',
+                        color: 'var(--accent-cyan)',
+                        fontSize: '0.78rem',
+                        fontWeight: '700',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.4rem',
+                      }}
+                      title="Load official coordinates for Arka Jain University, Gamharia"
+                    >
+                      <span>Arka Jain University (22.8433°N, 86.1024°E)</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleSetToCurrentLocation}
+                      disabled={isReadingGps}
+                      style={{
+                        padding: '0.45rem 0.85rem',
+                        borderRadius: '8px',
+                        background: 'var(--input-bg)',
+                        border: '1px solid var(--border-subtle)',
+                        color: 'var(--primary-light)',
+                        fontSize: '0.78rem',
+                        fontWeight: '700',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.4rem',
+                      }}
+                    >
+                      <Compass size={15} className={isReadingGps ? 'animate-spin' : ''} />
+                      <span>Fill My Current GPS</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* AI Conversational Assistant Settings */}
+                <div
+                  style={{
+                    padding: '1.25rem',
+                    borderRadius: '12px',
+                    background: 'rgba(147, 51, 234, 0.07)',
+                    border: '1px solid rgba(147, 51, 234, 0.25)',
+                    marginBottom: '1.75rem',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <Bot size={20} color="var(--primary-light)" />
+                      <span style={{ fontSize: '0.92rem', fontWeight: '700', color: 'var(--text-primary)' }}>
+                        AI Conversational Assistant Engine
+                      </span>
+                    </div>
+                    <span
+                      style={{
+                        padding: '0.2rem 0.6rem',
+                        borderRadius: '20px',
+                        fontSize: '0.7rem',
+                        fontWeight: '700',
+                        background: aiApiKey ? 'rgba(16, 185, 129, 0.15)' : 'rgba(59, 130, 246, 0.15)',
+                        color: aiApiKey ? 'var(--accent-emerald)' : 'var(--accent-cyan)',
+                        border: `1px solid ${aiApiKey ? 'rgba(16, 185, 129, 0.3)' : 'rgba(59, 130, 246, 0.3)'}`,
+                      }}
+                    >
+                      {aiApiKey ? 'Cloud LLM Key Configured' : 'Deep Autonomous Campus Engine (Active)'}
+                    </span>
+                  </div>
+
+                  <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.4, margin: '0 0 1rem' }}>
+                    Students can talk freely to the AI about college activities, fests (Aarohan, TechStorm, Spardha), clubs, sports, cafeteria, library, bus routes, CCTV facial turnstile passage counts, and academic tutoring without recorded canned responses.
+                  </p>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '1rem', alignItems: 'center' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.76rem', color: 'var(--text-secondary)', fontWeight: '600', marginBottom: '0.3rem' }}>
+                        AI Provider
+                      </label>
+                      <select
+                        value={aiProvider}
+                        onChange={(e) => setAiProvider(e.target.value)}
+                        disabled={!isAuthorized}
+                        style={{
+                          width: '100%',
+                          padding: '0.65rem 0.85rem',
+                          borderRadius: '8px',
+                          background: 'var(--input-bg)',
+                          border: '1px solid var(--input-border)',
+                          color: 'var(--text-primary)',
+                          fontSize: '0.82rem',
+                          outline: 'none',
+                        }}
+                      >
+                        <option value="gemini">Google Gemini (Gemini 1.5 Flash)</option>
+                        <option value="groq">Groq (Llama 3.3 70B - Ultra Fast)</option>
+                        <option value="openai">OpenAI (GPT-4o-mini)</option>
+                        <option value="claude">Anthropic Claude (3.5 Sonnet)</option>
+                        <option value="autonomous">Autonomous Campus AI (No Key Required)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.76rem', color: 'var(--text-secondary)', fontWeight: '600', marginBottom: '0.3rem' }}>
+                        <Key size={13} color="var(--primary-light)" />
+                        <span>Cloud API Key (Optional)</span>
+                      </label>
+                      <input
+                        type="password"
+                        value={aiApiKey}
+                        onChange={(e) => setAiApiKey(e.target.value)}
+                        disabled={!isAuthorized}
+                        placeholder={aiProvider === 'autonomous' ? 'Zero key needed (Campus engine active)' : 'Paste API Key (e.g. AIza..., gsk_..., or sk-...) or leave blank'}
+                        style={{
+                          width: '100%',
+                          padding: '0.65rem 0.85rem',
+                          borderRadius: '8px',
+                          background: 'var(--input-bg)',
+                          border: '1px solid var(--input-border)',
+                          color: 'var(--text-primary)',
+                          fontSize: '0.82rem',
+                          outline: 'none',
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
+                    💡 If left blank, SMARTCLASS AI automatically provides rich, free-flowing, context-grounded responses using its built-in collegiate knowledge base.
+                  </div>
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end' }}>

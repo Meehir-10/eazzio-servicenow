@@ -3,6 +3,7 @@ import {
   BookOpenCheck, Plus, Trash2, CheckCircle2, Circle, AlertCircle, 
   Clock, Calendar, Filter, FileText, Sparkles, RefreshCw, X 
 } from 'lucide-react';
+import { safeJson, parseApiResponse } from '../utils/api';
 
 export default function Assignments({ user }) {
   const isTeacher = user?.role === 'TEACHER' || user?.role === 'ADMIN';
@@ -31,11 +32,8 @@ export default function Assignments({ user }) {
       const res = await fetch(`/api/assignments?className=${selectedClass}`, {
         credentials: 'include',
       });
-      if (!res.ok) {
-        throw new Error('Failed to load coursework records');
-      }
-      const data = await res.json();
-      setItems(data);
+      const data = await parseApiResponse(res, 'Failed to load coursework records');
+      setItems(Array.isArray(data) ? data : []);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -55,10 +53,12 @@ export default function Assignments({ user }) {
         credentials: 'include',
       });
       if (res.ok) {
-        const data = await res.json();
-        setItems((prev) =>
-          prev.map((item) => (item.id === id ? { ...item, isDone: data.isDone } : item))
-        );
+        const data = await safeJson(res);
+        if (data) {
+          setItems((prev) =>
+            prev.map((item) => (item.id === id ? { ...item, isDone: data.isDone } : item))
+          );
+        }
       }
     } catch (e) {
       console.error('Failed to toggle completion', e);
@@ -102,10 +102,7 @@ export default function Assignments({ user }) {
         }),
       });
 
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to publish coursework');
-      }
+      const data = await parseApiResponse(res, 'Failed to publish coursework');
 
       setShowCreateModal(false);
       setNewTitle('');

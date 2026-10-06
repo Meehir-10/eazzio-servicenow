@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Bot, X, Send, Sparkles, Minimize2, RefreshCw, User } from 'lucide-react';
+import { parseApiResponse } from '../utils/api';
 
 export default function FloatingAiAssistant({ user, isOpen, setIsOpen }) {
   const [messages, setMessages] = useState([
@@ -32,24 +33,42 @@ export default function FloatingAiAssistant({ user, isOpen, setIsOpen }) {
     setIsLoading(true);
 
     try {
+      const geminiKey = localStorage.getItem('smartclass_gemini_key') || undefined;
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
           messages: newMessages.map((m) => ({ role: m.role, content: m.content })),
+          apiKey: geminiKey,
+          provider: 'gemini',
         }),
       });
 
-      if (!res.ok) {
-        throw new Error(`HTTP error! status: ${res.status}`);
-      }
+      const data = await parseApiResponse(res, 'Chat assistant response error');
+      const fullReply = data?.reply || 'I processed your request.';
 
-      const data = await res.json();
-      setMessages((prev) => [
-        ...prev,
-        { role: 'assistant', content: data.reply || 'I processed your request.' },
-      ]);
+      // Streaming token generation animation
+      setMessages((prev) => [...prev, { role: 'assistant', content: '', isGenerating: true }]);
+
+      const tokens = fullReply.split(/(\s+)/);
+      let accumulated = '';
+
+      for (let i = 0; i < tokens.length; i++) {
+        accumulated += tokens[i];
+        if (i % 2 === 0 || i === tokens.length - 1) {
+          setMessages((prev) => {
+            const next = [...prev];
+            next[next.length - 1] = {
+              role: 'assistant',
+              content: accumulated,
+              isGenerating: i < tokens.length - 1,
+            };
+            return next;
+          });
+          await new Promise((resolve) => setTimeout(resolve, 14));
+        }
+      }
     } catch (err) {
       console.error('Chat error:', err);
       setMessages((prev) => [

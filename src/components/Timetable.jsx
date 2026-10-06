@@ -3,6 +3,7 @@ import {
   Calendar as CalendarIcon, Clock, User, MapPin, Edit3, 
   Check, X, AlertCircle, RefreshCw, Sparkles 
 } from 'lucide-react';
+import { parseApiResponse } from '../utils/api';
 
 export default function Timetable({ user }) {
   const isTeacher = user?.role === 'TEACHER' || user?.role === 'ADMIN';
@@ -60,11 +61,8 @@ export default function Timetable({ user }) {
       const res = await fetch(`/api/timetable/${className}`, {
         credentials: 'include',
       });
-      if (!res.ok) {
-        throw new Error('Failed to fetch schedule from server');
-      }
-      const data = await res.json();
-      setTimetableEntries(data);
+      const data = await parseApiResponse(res, 'Failed to fetch schedule from server');
+      setTimetableEntries(Array.isArray(data) ? data : []);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -106,12 +104,7 @@ export default function Timetable({ user }) {
         }),
       });
 
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.error || 'Failed to update schedule');
-      }
-
-      const updated = await res.json();
+      const updated = await parseApiResponse(res, 'Failed to update schedule');
 
       // Update state locally
       setTimetableEntries((prev) => {
