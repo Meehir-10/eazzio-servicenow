@@ -1,15 +1,53 @@
 import React, { useState } from 'react';
-import { User, Lock, ArrowRight, ShieldCheck, Sparkles, GraduationCap, AlertCircle, RefreshCw } from 'lucide-react';
+import { ArrowRight, ShieldCheck, Sparkles, GraduationCap, AlertCircle, RefreshCw, BookOpen, Crown } from 'lucide-react';
 import { parseApiResponse } from '../utils/api';
 
+const PROFILES = [
+  {
+    username: 'admin',
+    role: 'ADMIN',
+    name: 'Dr. Alistair Vance',
+    designation: 'Dean & Administrator',
+    badge: 'Admin Access',
+    icon: Crown,
+    color: '#f43f5e',
+    bgColor: 'rgba(244, 63, 94, 0.12)',
+    borderColor: 'rgba(244, 63, 94, 0.3)',
+    description: 'Full Campus ERP control, timetable optimizer, CCTV & analytics',
+  },
+  {
+    username: 'prof_sharma',
+    role: 'TEACHER',
+    name: 'Prof. Rajesh Sharma',
+    designation: 'Faculty (Math & Physics)',
+    badge: 'Faculty Portal',
+    icon: BookOpen,
+    color: '#f59e0b',
+    bgColor: 'rgba(245, 158, 11, 0.12)',
+    borderColor: 'rgba(245, 158, 11, 0.3)',
+    description: 'Lecture schedules, class attendance, and assignment grading',
+  },
+  {
+    username: 'rohit_kumar',
+    role: 'STUDENT',
+    name: 'Rohit Kumar',
+    designation: 'Student (Section 10-A)',
+    badge: 'Student Portal',
+    icon: GraduationCap,
+    color: '#4f46e5',
+    bgColor: 'rgba(79, 70, 229, 0.12)',
+    borderColor: 'rgba(79, 70, 229, 0.3)',
+    description: 'Personal timetable, GPS attendance, grades & AI tutor',
+  },
+];
+
 export default function LoginPage({ onLogin }) {
-  const [username, setUsername] = useState('rohit_kumar');
-  const [password, setPassword] = useState('student123');
+  const [selectedUsername, setSelectedUsername] = useState('admin');
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleLogin = async (usernameToLogin) => {
+    const userToAuth = usernameToLogin || selectedUsername;
     setError(null);
     setIsLoading(true);
 
@@ -18,33 +56,10 @@ export default function LoginPage({ onLogin }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username: userToAuth }),
       });
 
-      const data = await parseApiResponse(res, 'Authentication failed');
-      onLogin(data.user);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleDemoSelect = async (u, p) => {
-    setUsername(u);
-    setPassword(p);
-    setError(null);
-    setIsLoading(true);
-
-    try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ username: u, password: p }),
-      });
-
-      const data = await parseApiResponse(res, 'Authentication failed');
+      const data = await parseApiResponse(res, 'Login failed');
       onLogin(data.user);
     } catch (err) {
       setError(err.message);
@@ -69,7 +84,7 @@ export default function LoginPage({ onLogin }) {
         className="glass-panel"
         style={{
           width: '100%',
-          maxWidth: '480px',
+          maxWidth: '520px',
           padding: '2.5rem 2.25rem',
           boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.6), 0 0 40px rgba(79, 70, 229, 0.15)',
         }}
@@ -130,206 +145,155 @@ export default function LoginPage({ onLogin }) {
           </div>
         )}
 
-        {/* Login Form */}
-        <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: '1.2rem' }}>
-            <label
-              htmlFor="login-username"
-              style={{
-                display: 'block',
-                fontSize: '0.8rem',
-                fontWeight: '600',
-                color: 'var(--text-secondary)',
-                marginBottom: '0.4rem',
-              }}
-            >
-              Username / Institutional ID
-            </label>
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-              <User size={18} style={{ position: 'absolute', left: '12px', color: 'var(--text-muted)' }} />
-              <input
-                id="login-username"
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                required
-                placeholder="e.g. rohit_kumar"
-                style={{
-                  width: '100%',
-                  padding: '0.75rem 1rem 0.75rem 2.5rem',
-                  borderRadius: '12px',
-                  background: 'var(--input-bg)',
-                  border: '1px solid var(--input-border)',
-                  color: 'var(--text-primary)',
-                  fontSize: '0.9rem',
-                  outline: 'none',
-                }}
-              />
-            </div>
-          </div>
-
-          <div style={{ marginBottom: '1.5rem' }}>
-            <label
-              htmlFor="login-password"
-              style={{
-                display: 'block',
-                fontSize: '0.8rem',
-                fontWeight: '600',
-                color: 'var(--text-secondary)',
-                marginBottom: '0.4rem',
-              }}
-            >
-              Password
-            </label>
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-              <Lock size={18} style={{ position: 'absolute', left: '12px', color: 'var(--text-muted)' }} />
-              <input
-                id="login-password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                placeholder="••••••••"
-                style={{
-                  width: '100%',
-                  padding: '0.75rem 1rem 0.75rem 2.5rem',
-                  borderRadius: '12px',
-                  background: 'var(--input-bg)',
-                  border: '1px solid var(--input-border)',
-                  color: 'var(--text-primary)',
-                  fontSize: '0.9rem',
-                  outline: 'none',
-                }}
-              />
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="btn-primary-gradient"
-            style={{
-              width: '100%',
-              padding: '0.85rem',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '0.5rem',
-              fontSize: '0.95rem',
-              cursor: isLoading ? 'default' : 'pointer',
-              opacity: isLoading ? 0.75 : 1,
-            }}
-          >
-            {isLoading ? (
-              <>
-                <RefreshCw size={18} className="animate-spin" />
-                <span>Verifying Credentials...</span>
-              </>
-            ) : (
-              <>
-                <span>Enter Institutional Portal</span>
-                <ArrowRight size={18} />
-              </>
-            )}
-          </button>
-        </form>
-
-        {/* 1-Click Demo Profiles */}
-        <div
-          style={{
-            marginTop: '1.75rem',
-            paddingTop: '1.25rem',
-            borderTop: '1px solid var(--border-subtle)',
-          }}
-        >
+        {/* Select Portal Persona */}
+        <div style={{ marginBottom: '1.5rem' }}>
           <div
             style={{
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              gap: '0.4rem',
-              fontSize: '0.75rem',
-              color: 'var(--text-muted)',
+              justifyContent: 'space-between',
               marginBottom: '0.75rem',
             }}
           >
-            <Sparkles size={14} color="var(--accent-gold)" />
-            <span>Instant Demo Accounts (Click to log in directly)</span>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-            <button
-              type="button"
-              onClick={() => handleDemoSelect('rohit_kumar', 'student123')}
+            <span style={{ fontSize: '0.82rem', fontWeight: '600', color: 'var(--text-secondary)' }}>
+              Select Portal Persona:
+            </span>
+            <span
               style={{
-                fontSize: '0.74rem',
-                padding: '0.5rem 0.65rem',
-                borderRadius: '10px',
-                background: 'rgba(79, 70, 229, 0.12)',
-                border: '1px solid rgba(79, 70, 229, 0.25)',
-                color: 'var(--primary-light)',
-                cursor: 'pointer',
-                textAlign: 'left',
-              }}
-            >
-              🎓 <strong>Rohit (10-A)</strong>
-              <div style={{ fontSize: '0.66rem', opacity: 0.8 }}>Student • 90% Att.</div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleDemoSelect('rahul_verma', 'student123')}
-              style={{
-                fontSize: '0.74rem',
-                padding: '0.5rem 0.65rem',
-                borderRadius: '10px',
-                background: 'rgba(6, 182, 212, 0.12)',
-                border: '1px solid rgba(6, 182, 212, 0.25)',
+                fontSize: '0.72rem',
                 color: 'var(--accent-cyan)',
-                cursor: 'pointer',
-                textAlign: 'left',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.3rem',
               }}
             >
-              🎓 <strong>Rahul (10-B)</strong>
-              <div style={{ fontSize: '0.66rem', opacity: 0.8 }}>Student • 70% Att.</div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleDemoSelect('prof_sharma', 'teacher123')}
-              style={{
-                fontSize: '0.74rem',
-                padding: '0.5rem 0.65rem',
-                borderRadius: '10px',
-                background: 'rgba(245, 158, 11, 0.12)',
-                border: '1px solid rgba(245, 158, 11, 0.25)',
-                color: 'var(--accent-gold)',
-                cursor: 'pointer',
-                textAlign: 'left',
-              }}
-            >
-              👨‍🏫 <strong>Prof. Sharma</strong>
-              <div style={{ fontSize: '0.66rem', opacity: 0.8 }}>Faculty • Math/Phys</div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleDemoSelect('admin', 'admin123')}
-              style={{
-                fontSize: '0.74rem',
-                padding: '0.5rem 0.65rem',
-                borderRadius: '10px',
-                background: 'rgba(244, 63, 94, 0.12)',
-                border: '1px solid rgba(244, 63, 94, 0.25)',
-                color: 'var(--accent-rose)',
-                cursor: 'pointer',
-                textAlign: 'left',
-              }}
-            >
-              🏛️ <strong>Dean Vance</strong>
-              <div style={{ fontSize: '0.66rem', opacity: 0.8 }}>Admin Controller</div>
-            </button>
+              <Sparkles size={12} /> Passwordless Direct Access
+            </span>
           </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+            {PROFILES.map((profile) => {
+              const Icon = profile.icon;
+              const isSelected = selectedUsername === profile.username;
+
+              return (
+                <div
+                  key={profile.username}
+                  onClick={() => setSelectedUsername(profile.username)}
+                  style={{
+                    padding: '0.85rem 1rem',
+                    borderRadius: '12px',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    background: isSelected ? profile.bgColor : 'rgba(255, 255, 255, 0.03)',
+                    border: `1.5px solid ${isSelected ? profile.borderColor : 'var(--border-subtle)'}`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    boxShadow: isSelected ? `0 0 15px ${profile.bgColor}` : 'none',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                    <div
+                      style={{
+                        width: '38px',
+                        height: '38px',
+                        borderRadius: '10px',
+                        background: profile.bgColor,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: profile.color,
+                        flexShrink: 0,
+                      }}
+                    >
+                      <Icon size={20} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.9rem', fontWeight: '700', color: 'var(--text-primary)' }}>
+                        {profile.name}
+                      </div>
+                      <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                        {profile.designation}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span
+                      style={{
+                        fontSize: '0.68rem',
+                        fontWeight: '600',
+                        padding: '0.2rem 0.5rem',
+                        borderRadius: '6px',
+                        background: profile.bgColor,
+                        color: profile.color,
+                        border: `1px solid ${profile.borderColor}`,
+                      }}
+                    >
+                      {profile.badge}
+                    </span>
+                    <input
+                      type="radio"
+                      name="persona"
+                      checked={isSelected}
+                      onChange={() => setSelectedUsername(profile.username)}
+                      style={{ accentColor: profile.color, cursor: 'pointer' }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 1-Click Login to Dashboard Button */}
+        <button
+          type="button"
+          onClick={() => handleLogin()}
+          disabled={isLoading}
+          className="btn-primary-gradient"
+          style={{
+            width: '100%',
+            padding: '0.9rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '0.6rem',
+            fontSize: '1rem',
+            fontWeight: '600',
+            cursor: isLoading ? 'default' : 'pointer',
+            opacity: isLoading ? 0.75 : 1,
+            boxShadow: '0 8px 24px rgba(79, 70, 229, 0.4)',
+          }}
+        >
+          {isLoading ? (
+            <>
+              <RefreshCw size={20} className="animate-spin" />
+              <span>Entering Dashboard...</span>
+            </>
+          ) : (
+            <>
+              <span>Log In to Dashboard</span>
+              <ArrowRight size={20} />
+            </>
+          )}
+        </button>
+
+        <div
+          style={{
+            marginTop: '1.25rem',
+            textAlign: 'center',
+            fontSize: '0.74rem',
+            color: 'var(--text-muted)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '0.4rem',
+          }}
+        >
+          <ShieldCheck size={14} color="var(--accent-emerald)" />
+          <span>Zero passwords needed • Single click institutional dashboard access</span>
         </div>
       </div>
     </div>
